@@ -67,6 +67,8 @@ class DaysContainer extends StatelessWidget {
           markAllAsSeenCallback: actions.dashboardActions.markAllAsSeen.call,
           refreshNoInternet: actions.refreshNoInternet.call,
           onOpenAttachment: actions.dashboardActions.openAttachment.call,
+          onSaveAttachmentAs: actions.dashboardActions.saveAttachmentAs.call,
+          onCopyAttachment: actions.dashboardActions.copyAttachment.call,
         );
       },
       connect: (state) {

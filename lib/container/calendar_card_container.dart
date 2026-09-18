@@ -43,6 +43,8 @@ class CalendarCardContainer extends StatelessWidget {
           theme: state.theme,
           selected: state.selected,
           onOpenFile: actions.calendarActions.onOpenFile.call,
+          onSaveFileAs: actions.calendarActions.onSaveFileAs.call,
+          onCopyFile: actions.calendarActions.onCopyFile.call,
           noInternet: state.noInternet,
           absenceMark: state.absenceMark,
         );

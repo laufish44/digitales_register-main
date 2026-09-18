@@ -23,6 +23,8 @@ final _calendarMiddleware =
       ..add(CalendarActionsNames.select, _selectionChanged)
       ..add(CalendarActionsNames.setCurrentMonday, _weekChanged)
       ..add(CalendarActionsNames.onOpenFile, _openSubmission)
+      ..add(CalendarActionsNames.onSaveFileAs, _saveSubmissionAs)
+      ..add(CalendarActionsNames.onCopyFile, _copySubmission)
       ..add(RoutingActionsNames.showCalendar, _clearSelection);
 
 Future<void> _loadCalendar(
@@ -83,30 +85,56 @@ Future<void> _clearSelection(
   await api.actions.calendarActions.select(null);
 }
 
+/// Makes sure the attachment is on disk, downloading it if it is not.
+Future<bool> _ensureSubmission(
+  MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+  LessonContentSubmission submission,
+) async {
+  if (submission.fileAvailable && await canOpenFile(submission.uniqueName)) {
+    return true;
+  }
+
+  await api.actions.calendarActions.onDownloadFile(submission);
+  final success = await downloadFile(
+    "${wrapper.baseAddress}api/lessonContent/lessonContentSubmissionDownloadEntry",
+    submission.uniqueName,
+    <String, dynamic>{
+      "parentId": submission.lessonContentId,
+      "submissionId": submission.id,
+    },
+  );
+  await api.actions.calendarActions.fileAvailable(
+    submission.rebuild((b) => b..fileAvailable = success),
+  );
+  return success;
+}
+
 Future<void> _openSubmission(
     MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
     ActionHandler next,
     Action<LessonContentSubmission> action) async {
   await next(action);
-
-  if (!action.payload.fileAvailable ||
-      !await canOpenFile(action.payload.uniqueName)) {
-    await api.actions.calendarActions.onDownloadFile(action.payload);
-    final success = await downloadFile(
-      "${wrapper.baseAddress}api/lessonContent/lessonContentSubmissionDownloadEntry",
-      action.payload.uniqueName,
-      <String, dynamic>{
-        "parentId": action.payload.lessonContentId,
-        "submissionId": action.payload.id,
-      },
-    );
-    await api.actions.calendarActions.fileAvailable(
-      action.payload.rebuild((b) => b..fileAvailable = success),
-    );
-    if (!success) {
-      return;
-    }
-  }
-
+  if (!await _ensureSubmission(api, action.payload)) return;
   await openFile(action.payload.uniqueName);
+}
+
+Future<void> _saveSubmissionAs(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+    ActionHandler next,
+    Action<LessonContentSubmission> action) async {
+  await next(action);
+  if (!await _ensureSubmission(api, action.payload)) return;
+  await saveAttachmentAs(
+    action.payload.uniqueName,
+    suggestedName: action.payload.originalName,
+  );
+}
+
+Future<void> _copySubmission(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+    ActionHandler next,
+    Action<LessonContentSubmission> action) async {
+  await next(action);
+  if (!await _ensureSubmission(api, action.payload)) return;
+  await copyAttachmentToClipboard(action.payload.uniqueName);
 }

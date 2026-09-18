@@ -44,6 +44,12 @@ abstract class DashboardActions extends ReduxActions {
   abstract final ActionDispatcher<GradeGroupSubmission> downloadAttachment;
   abstract final ActionDispatcher<GradeGroupSubmission> attachmentReady;
   abstract final ActionDispatcher<GradeGroupSubmission> openAttachment;
+
+  /// Downloads the attachment if needed, then asks where to put a copy.
+  abstract final ActionDispatcher<GradeGroupSubmission> saveAttachmentAs;
+
+  /// Downloads the attachment if needed, then puts it on the clipboard.
+  abstract final ActionDispatcher<GradeGroupSubmission> copyAttachment;
 }
 
 abstract class DaysLoadedPayload

@@ -33,5 +33,11 @@ abstract class CalendarActions extends ReduxActions {
   abstract final ActionDispatcher<CalendarSelection?> select;
   abstract final ActionDispatcher<LessonContentSubmission> onDownloadFile;
   abstract final ActionDispatcher<LessonContentSubmission> onOpenFile;
+
+  /// Downloads the attachment if needed, then asks where to put a copy.
+  abstract final ActionDispatcher<LessonContentSubmission> onSaveFileAs;
+
+  /// Downloads the attachment if needed, then puts it on the clipboard.
+  abstract final ActionDispatcher<LessonContentSubmission> onCopyFile;
   abstract final ActionDispatcher<LessonContentSubmission> fileAvailable;
 }

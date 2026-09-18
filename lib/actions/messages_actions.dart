@@ -32,6 +32,13 @@ abstract class MessagesActions extends ReduxActions {
   abstract final ActionDispatcher<MessageAttachmentFile> downloadFile;
   abstract final ActionDispatcher<MessageAttachmentFile> fileAvailable;
   abstract final ActionDispatcher<MessageAttachmentFile> openFile;
+
+  /// Downloads the attachment if needed, then asks where to put a copy.
+  abstract final ActionDispatcher<MessageAttachmentFile> saveFileAs;
+
+  /// Downloads the attachment if needed, then puts it on the clipboard.
+  abstract final ActionDispatcher<MessageAttachmentFile> copyFile;
+
   abstract final ActionDispatcher<int> markAsRead;
 
   /// Carries the timestamp the server assigned when marking a message as read.

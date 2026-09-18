@@ -33,6 +33,8 @@ class MessagesPageContainer extends StatelessWidget {
           noInternet: vm.item2,
           composeEnabled: vm.item3,
           onOpenFile: actions.messagesActions.openFile.call,
+          onSaveFileAs: actions.messagesActions.saveFileAs.call,
+          onCopyFile: actions.messagesActions.copyFile.call,
           onMarkAsRead: (m) => actions.messagesActions.markAsRead(m.id),
           onMessageSent: actions.messagesActions.load.call,
         );

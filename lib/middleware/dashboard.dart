@@ -25,6 +25,8 @@ final _dashboardMiddleware = MiddlewareBuilder<AppState, AppStateBuilder,
   ..add(DashboardActionsNames.deleteHomework, _deleteHomework)
   ..add(DashboardActionsNames.toggleDone, _toggleDone)
   ..add(DashboardActionsNames.openAttachment, _openAttachment)
+  ..add(DashboardActionsNames.saveAttachmentAs, _saveAttachmentAs)
+  ..add(DashboardActionsNames.copyAttachment, _copyAttachment)
   ..add(SettingsActionsNames.markNotSeenDashboardEntries, _markNotSeenEntries);
 
 Future<void> _loadDays(MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
@@ -147,31 +149,55 @@ Future<void> _markNotSeenEntries(
   await next(action);
 }
 
+/// Makes sure the attachment is on disk, downloading it if it is not.
+Future<bool> _ensureDashboardAttachment(
+  MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+  GradeGroupSubmission submission,
+) async {
+  if (submission.fileAvailable && await canOpenFile(submission.uniqueName)) {
+    return true;
+  }
+
+  await api.actions.dashboardActions.downloadAttachment(submission);
+  final success = await downloadFile(
+    "${wrapper.baseAddress}api/gradeGroup/gradeGroupSubmissionDownloadEntry",
+    submission.uniqueName,
+    <String, dynamic>{
+      "submissionId": submission.id,
+      "parentId": submission.gradeGroupId,
+    },
+  );
+  await api.actions.dashboardActions
+      .attachmentReady(submission.rebuild((b) => b..fileAvailable = success));
+  return success;
+}
+
 Future<void> _openAttachment(
     MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
     ActionHandler next,
     Action<GradeGroupSubmission> action) async {
   await next(action);
-
-  if (!action.payload.fileAvailable ||
-      !await canOpenFile(action.payload.uniqueName)) {
-    await api.actions.dashboardActions.downloadAttachment(action.payload);
-
-    await next(action);
-    final success = await downloadFile(
-      "${wrapper.baseAddress}api/gradeGroup/gradeGroupSubmissionDownloadEntry",
-      action.payload.uniqueName,
-      <String, dynamic>{
-        "submissionId": action.payload.id,
-        "parentId": action.payload.gradeGroupId,
-      },
-    );
-    await api.actions.dashboardActions.attachmentReady(
-        action.payload.rebuild((b) => b..fileAvailable = success));
-    if (!success) {
-      return;
-    }
-  }
-
+  if (!await _ensureDashboardAttachment(api, action.payload)) return;
   await openFile(action.payload.uniqueName);
+}
+
+Future<void> _saveAttachmentAs(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+    ActionHandler next,
+    Action<GradeGroupSubmission> action) async {
+  await next(action);
+  if (!await _ensureDashboardAttachment(api, action.payload)) return;
+  await saveAttachmentAs(
+    action.payload.uniqueName,
+    suggestedName: action.payload.originalName,
+  );
+}
+
+Future<void> _copyAttachment(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+    ActionHandler next,
+    Action<GradeGroupSubmission> action) async {
+  await next(action);
+  if (!await _ensureDashboardAttachment(api, action.payload)) return;
+  await copyAttachmentToClipboard(action.payload.uniqueName);
 }

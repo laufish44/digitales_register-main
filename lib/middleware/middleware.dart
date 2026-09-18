@@ -44,6 +44,7 @@ import 'package:dr/container/messages_container.dart';
 import 'package:dr/container/settings_page.dart';
 import 'package:dr/data.dart';
 import 'package:dr/desktop.dart';
+import 'package:dr/file_actions.dart';
 import 'package:dr/file_opener.dart';
 import 'package:dr/background/android_background.dart';
 import 'package:dr/background/windows_autostart.dart';
@@ -742,6 +743,28 @@ Future<void> openFile(String fileName) async {
   if (!result.success) {
     showSnackBar(result.errorMessage!);
   }
+}
+
+/// Asks the user where to save a copy of a downloaded attachment.
+///
+/// [suggestedName] is what the dialog offers — the attachment's real name,
+/// rather than the prefixed name it is cached under.
+Future<void> saveAttachmentAs(String fileName, {String? suggestedName}) async {
+  final result = await saveFileAs(
+    (await _attachmentFile(fileName)).path,
+    suggestedName:
+        suggestedName == null ? null : sanitizeFileName(suggestedName),
+  );
+  // Nothing to say when the user simply closed the dialog.
+  if (result.cancelled) return;
+  if (result.message != null) showSnackBar(result.message!);
+}
+
+/// Puts a downloaded attachment on the clipboard.
+Future<void> copyAttachmentToClipboard(String fileName) async {
+  final result =
+      await copyFileToClipboard((await _attachmentFile(fileName)).path);
+  if (result.message != null) showSnackBar(result.message!);
 }
 
 /// Attachments we already tried to prefetch in this session.

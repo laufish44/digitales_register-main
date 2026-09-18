@@ -22,7 +22,9 @@ final _messagesMiddleware =
       ..add(MessagesActionsNames.load, _loadMessages)
       ..add(MessagesActionsNames.loaded, _prefetchMessageAttachments)
       ..add(MessagesActionsNames.markAsRead, _markAsRead)
-      ..add(MessagesActionsNames.openFile, _openFile);
+      ..add(MessagesActionsNames.openFile, _openFile)
+      ..add(MessagesActionsNames.saveFileAs, _saveMessageFileAs)
+      ..add(MessagesActionsNames.copyFile, _copyMessageFile);
 
 Future<void> _prefetchMessageAttachments(
     MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
@@ -44,30 +46,60 @@ Future<void> _loadMessages(
   }
 }
 
+/// Makes sure the attachment is on disk, downloading it if it is not.
+///
+/// Returns false when it could not be fetched; the caller then does nothing,
+/// because [downloadFile] has already told the user what went wrong.
+Future<bool> _ensureMessageAttachment(
+  MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+  MessageAttachmentFile attachment,
+) async {
+  if (attachment.fileAvailable && await canOpenFile(attachment.uniqueName)) {
+    return true;
+  }
+
+  await api.actions.messagesActions.downloadFile(attachment);
+  final success = await downloadFile(
+    "${wrapper.baseAddress}api/message/messageSubmissionDownloadEntry",
+    attachment.uniqueName,
+    <String, dynamic>{
+      "messageId": attachment.messageId,
+      "submissionId": attachment.id,
+    },
+  );
+  await api.actions.messagesActions
+      .fileAvailable(attachment.rebuild((b) => b..fileAvailable = success));
+  return success;
+}
+
 Future<void> _openFile(MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
     ActionHandler next, Action<MessageAttachmentFile> action) async {
   await next(action);
-
-  if (!action.payload.fileAvailable ||
-      !await canOpenFile(action.payload.uniqueName)) {
-    await api.actions.messagesActions.downloadFile(action.payload);
-
-    final success = await downloadFile(
-      "${wrapper.baseAddress}api/message/messageSubmissionDownloadEntry",
-      action.payload.uniqueName,
-      <String, dynamic>{
-        "messageId": action.payload.messageId,
-        "submissionId": action.payload.id,
-      },
-    );
-    await api.actions.messagesActions.fileAvailable(
-        action.payload.rebuild((b) => b..fileAvailable = success));
-    if (!success) {
-      return;
-    }
-  }
-
+  if (!await _ensureMessageAttachment(api, action.payload)) return;
   await openFile(action.payload.uniqueName);
+}
+
+Future<void> _saveMessageFileAs(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+    ActionHandler next,
+    Action<MessageAttachmentFile> action) async {
+  await next(action);
+  if (!await _ensureMessageAttachment(api, action.payload)) return;
+  await saveAttachmentAs(
+    action.payload.uniqueName,
+    // The cached copy is named `msg_<id>_<id>_<name>` so attachments of
+    // different messages cannot collide; the user should get the real name.
+    suggestedName: action.payload.originalName,
+  );
+}
+
+Future<void> _copyMessageFile(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+    ActionHandler next,
+    Action<MessageAttachmentFile> action) async {
+  await next(action);
+  if (!await _ensureMessageAttachment(api, action.payload)) return;
+  await copyAttachmentToClipboard(action.payload.uniqueName);
 }
 
 Future<void> _markAsRead(

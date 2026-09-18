@@ -28,6 +28,7 @@ import 'package:dr/data.dart';
 import 'package:dr/main.dart';
 import 'package:dr/middleware/middleware.dart';
 import 'package:dr/ui/animated_linear_progress_indicator.dart';
+import 'package:dr/ui/attachment_actions.dart';
 import 'package:dr/ui/dialog.dart';
 import 'package:dr/ui/last_fetched_overlay.dart';
 import 'package:dr/ui/no_internet.dart';
@@ -61,6 +62,8 @@ class DaysWidget extends StatefulWidget {
   final VoidCallback refresh;
   final VoidCallback refreshNoInternet;
   final AttachmentCallback onOpenAttachment;
+  final AttachmentCallback onSaveAttachmentAs;
+  final AttachmentCallback onCopyAttachment;
 
   const DaysWidget({
     super.key,
@@ -76,6 +79,8 @@ class DaysWidget extends StatefulWidget {
     required this.refresh,
     required this.refreshNoInternet,
     required this.onOpenAttachment,
+    required this.onSaveAttachmentAs,
+    required this.onCopyAttachment,
   });
   @override
   _DaysWidgetState createState() => _DaysWidgetState();
@@ -228,6 +233,8 @@ class _DaysWidgetState extends State<DaysWidget> {
       toggleDoneCallback: widget.toggleDoneCallback,
       setDoNotAskWhenDeleteCallback: widget.setDoNotAskWhenDeleteCallback,
       onOpenAttachment: widget.onOpenAttachment,
+      onSaveAttachmentAs: widget.onSaveAttachmentAs,
+      onCopyAttachment: widget.onCopyAttachment,
       colorBorders: widget.vm.colorBorders,
       colorTestsInRed: widget.vm.colorTestsInRed,
       subjectThemes: widget.vm.subjectThemes,
@@ -482,6 +489,8 @@ class DayWidget extends StatelessWidget {
   final ToggleDoneCallback toggleDoneCallback;
   final VoidCallback setDoNotAskWhenDeleteCallback;
   final AttachmentCallback onOpenAttachment;
+  final AttachmentCallback onSaveAttachmentAs;
+  final AttachmentCallback onCopyAttachment;
   final bool colorBorders, colorTestsInRed;
   final BuiltMap<String, SubjectTheme> subjectThemes;
 
@@ -503,6 +512,8 @@ class DayWidget extends StatelessWidget {
     required this.toggleDoneCallback,
     required this.setDoNotAskWhenDeleteCallback,
     required this.onOpenAttachment,
+    required this.onSaveAttachmentAs,
+    required this.onCopyAttachment,
     required this.colorBorders,
     required this.subjectThemes,
     required this.colorTestsInRed,
@@ -661,6 +672,8 @@ class DayWidget extends StatelessWidget {
             controller: controller,
             index: ++i,
             onOpenAttachment: onOpenAttachment,
+            onSaveAttachmentAs: onSaveAttachmentAs,
+            onCopyAttachment: onCopyAttachment,
             subjectThemes: subjectThemes,
             colorBorder: colorBorders,
             colorTestsInRed: colorTestsInRed,
@@ -683,6 +696,8 @@ class ItemWidget extends StatelessWidget {
       colorBorder,
       colorTestsInRed;
   final AttachmentCallback? onOpenAttachment;
+  final AttachmentCallback? onSaveAttachmentAs;
+  final AttachmentCallback? onCopyAttachment;
   final BuiltMap<String, SubjectTheme> subjectThemes;
 
   final AutoScrollController? controller;
@@ -702,6 +717,8 @@ class ItemWidget extends StatelessWidget {
     required this.noInternet,
     this.isCurrent = true,
     this.onOpenAttachment,
+    this.onSaveAttachmentAs,
+    this.onCopyAttachment,
     required this.colorBorder,
     required this.subjectThemes,
     required this.colorTestsInRed,
@@ -985,6 +1002,8 @@ class ItemWidget extends StatelessWidget {
                     ggs: attachment,
                     noInternet: noInternet,
                     openCallback: onOpenAttachment!,
+                    saveAsCallback: onSaveAttachmentAs,
+                    copyCallback: onCopyAttachment,
                   )
               ]
             ],
@@ -1052,13 +1071,19 @@ UtcDateTime toDate(UtcDateTime dateTime) {
 class AttachmentWidget extends StatelessWidget {
   final GradeGroupSubmission ggs;
   final AttachmentCallback openCallback;
+
+  /// Optional so the widget keeps working where only opening is wired up.
+  final AttachmentCallback? saveAsCallback;
+  final AttachmentCallback? copyCallback;
   final bool noInternet;
 
   const AttachmentWidget(
       {super.key,
       required this.ggs,
       required this.noInternet,
-      required this.openCallback});
+      required this.openCallback,
+      this.saveAsCallback,
+      this.copyCallback});
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1069,16 +1094,17 @@ class AttachmentWidget extends StatelessWidget {
             indent: 16,
             height: 0,
           ),
-          ListTile(title: Text(ggs.originalName)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: AttachmentActions(
+              name: ggs.originalName,
+              enabled: ggs.fileAvailable || !noInternet,
+              onOpen: () => openCallback(ggs),
+              onSaveAs: saveAsCallback == null ? null : () => saveAsCallback!(ggs),
+              onCopy: copyCallback == null ? null : () => copyCallback!(ggs),
+            ),
+          ),
           AnimatedLinearProgressIndicator(show: ggs.downloading),
-          TextButton(
-            onPressed: !ggs.fileAvailable && noInternet
-                ? null
-                : () {
-                    openCallback(ggs);
-                  },
-            child: const Text("Öffnen"),
-          )
         ],
       ),
     );

@@ -21,6 +21,7 @@ import 'package:badges/badges.dart' as badge;
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/ui/animated_linear_progress_indicator.dart';
+import 'package:dr/ui/attachment_actions.dart';
 import 'package:dr/ui/last_fetched_overlay.dart';
 import 'package:dr/ui/message_compose.dart';
 import 'package:dr/ui/no_internet.dart';
@@ -37,6 +38,8 @@ class MessagesPage extends StatelessWidget {
   final bool noInternet;
   final bool composeEnabled;
   final void Function(MessageAttachmentFile message) onOpenFile;
+  final void Function(MessageAttachmentFile message) onSaveFileAs;
+  final void Function(MessageAttachmentFile message) onCopyFile;
   final void Function(Message message) onMarkAsRead;
   final VoidCallback onMessageSent;
 
@@ -46,6 +49,8 @@ class MessagesPage extends StatelessWidget {
     required this.noInternet,
     required this.composeEnabled,
     required this.onOpenFile,
+    required this.onSaveFileAs,
+    required this.onCopyFile,
     required this.onMarkAsRead,
     required this.onMessageSent,
   });
@@ -91,6 +96,8 @@ class MessagesPage extends StatelessWidget {
                       return MessageWidget(
                         message: state!.messages[i],
                         onOpenFile: onOpenFile,
+                        onSaveFileAs: onSaveFileAs,
+                        onCopyFile: onCopyFile,
                         onMarkAsRead: onMarkAsRead,
                         noInternet: noInternet,
                         expand: state!.messages[i].id == state!.showMessage,
@@ -109,6 +116,8 @@ class MessagesPage extends StatelessWidget {
 class MessageWidget extends StatefulWidget {
   final Message message;
   final void Function(MessageAttachmentFile message) onOpenFile;
+  final void Function(MessageAttachmentFile message) onSaveFileAs;
+  final void Function(MessageAttachmentFile message) onCopyFile;
   final void Function(Message message) onMarkAsRead;
   final bool noInternet;
   final bool expand;
@@ -121,6 +130,8 @@ class MessageWidget extends StatefulWidget {
     super.key,
     required this.message,
     required this.onOpenFile,
+    required this.onSaveFileAs,
+    required this.onCopyFile,
     required this.noInternet,
     required this.onMarkAsRead,
     required this.expand,
@@ -263,23 +274,18 @@ class _MessageWidgetState extends State<MessageWidget> {
               ...[
                 for (final attachment in widget.message.attachments)
                   [
-                    Text(
-                      attachment.originalName,
+                    AttachmentActions(
+                      name: attachment.originalName,
+                      // Without the file cached there is nothing to open, save
+                      // or copy until it can be fetched.
+                      enabled:
+                          attachment.fileAvailable || !widget.noInternet,
+                      onOpen: () => widget.onOpenFile(attachment),
+                      onSaveAs: () => widget.onSaveFileAs(attachment),
+                      onCopy: () => widget.onCopyFile(attachment),
                     ),
                     AnimatedLinearProgressIndicator(
                       show: attachment.downloading,
-                    ),
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed:
-                            !attachment.fileAvailable && widget.noInternet
-                                ? null
-                                : () {
-                                    widget.onOpenFile(attachment);
-                                  },
-                        child: const Text("Öffnen"),
-                      ),
                     ),
                   ]
               ].intersperse(const Divider()),

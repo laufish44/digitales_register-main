@@ -19,6 +19,7 @@ import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/stats.dart';
 import 'package:dr/ui/animated_linear_progress_indicator.dart';
+import 'package:dr/ui/attachment_actions.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -71,6 +72,8 @@ class CalendarCard extends StatelessWidget {
   final SubjectTheme theme;
   final bool selected;
   final SubmissionCallback onOpenFile;
+  final SubmissionCallback? onSaveFileAs;
+  final SubmissionCallback? onCopyFile;
   final bool noInternet;
 
   /// Whether the student is (or will be) away during this lesson.
@@ -83,6 +86,8 @@ class CalendarCard extends StatelessWidget {
     required this.selected,
     required this.onOpenFile,
     required this.noInternet,
+    this.onSaveFileAs,
+    this.onCopyFile,
     this.absenceMark = AbsenceMark.none,
   });
 
@@ -190,6 +195,8 @@ class CalendarCard extends StatelessWidget {
                   submission: submission,
                   noInternet: noInternet,
                   onOpenFile: onOpenFile,
+                  onSaveFileAs: onSaveFileAs,
+                  onCopyFile: onCopyFile,
                 )
             ],
             for (final HomeworkExam homeworkExam in hour.homeworkExams)
@@ -302,10 +309,17 @@ class _SubmissionWidget extends StatelessWidget {
   final LessonContentSubmission submission;
   final bool noInternet;
   final SubmissionCallback onOpenFile;
+
+  /// Optional so the widget keeps working where only opening is wired up.
+  final SubmissionCallback? onSaveFileAs;
+  final SubmissionCallback? onCopyFile;
+
   const _SubmissionWidget({
     required this.submission,
     required this.noInternet,
     required this.onOpenFile,
+    this.onSaveFileAs,
+    this.onCopyFile,
   });
 
   @override
@@ -329,24 +343,15 @@ class _SubmissionWidget extends StatelessWidget {
                 "Anhang",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              Text(
-                submission.originalName,
+              AttachmentActions(
+                name: submission.originalName,
+                enabled: submission.fileAvailable || !noInternet,
+                onOpen: () => onOpenFile(submission),
+                onSaveAs:
+                    onSaveFileAs == null ? null : () => onSaveFileAs!(submission),
+                onCopy: onCopyFile == null ? null : () => onCopyFile!(submission),
               ),
               AnimatedLinearProgressIndicator(show: submission.downloading),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: !submission.fileAvailable && noInternet
-                      ? null
-                      : () {
-                          onOpenFile(submission);
-                        },
-                  child: const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text("Öffnen"),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
