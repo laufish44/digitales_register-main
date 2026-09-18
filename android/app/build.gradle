@@ -1,0 +1,114 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '2'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    // Required by AGP 8; previously taken from the manifest's package attribute.
+    namespace "it.digitalesregisterapp"
+    compileSdkVersion 35
+    // The Flutter Gradle plugin reads android.ndkVersion, and AGP 8 resolves
+    // the NDK as soon as it is read - so one has to be installed even though
+    // nothing in this project has native sources. Pinned to the version Flutter
+    // 3.32 expects so the toolchain stays reproducible.
+    ndkVersion "26.3.11579264"
+
+    compileOptions {
+        // flutter_local_notifications schedules with java.time, which needs
+        // desugaring to work on the older Android versions we still support.
+        coreLibraryDesugaringEnabled true
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+
+    defaultConfig {
+        applicationId "it.digitalesregisterapp"
+        minSdkVersion 23
+        targetSdkVersion 34
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }
+
+    signingConfigs {
+        release {
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
+        }
+    }
+    buildTypes {
+        release {
+            // Without a key.properties there is no release key; fall back to the
+            // debug key so that a release build can still be produced locally.
+            // Store uploads obviously still need the real key.
+            signingConfig keystorePropertiesFile.exists()
+                    ? signingConfigs.release
+                    : signingConfigs.debug
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                    'proguard-rules.pro'
+            // this is my (michael) release key. Used for dev purposes only.
+            if (keystorePropertiesFile.exists() && signingConfigs.release.keyAlias == "myandroidkey") {
+                applicationIdSuffix ".irelease"
+                resValue "string", "app_name", "dr Irelease"
+            } else {
+                // This is the normal release build type
+                resValue "string", "app_name", "Register"
+            }
+        }
+        debug {
+            applicationIdSuffix ".debug"
+            resValue "string", "app_name", "dr DEBUG"
+        }
+        profile {
+            // No applicationIdSuffix here: the Flutter Gradle plugin recreates
+            // this build type inside every plugin module, and AGP 8 rejects
+            // applicationIdSuffix in library projects. Profile builds therefore
+            // share the release application id.
+            resValue "string", "app_name", "dr PROFILE"
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"
+}

@@ -1,0 +1,85 @@
+// Plugin versions live in settings.gradle now; see the note there.
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = "../build"
+
+// Some plugins we depend on predate AGP 8 and still declare their package in
+// the manifest instead of a namespace, and compile against an SDK that AGP 8
+// no longer accepts. Rather than pinning the whole project to an old AGP, fill
+// both in from what the plugin already declares. Plugins that set these
+// themselves are left untouched.
+//
+// This has to be registered before the evaluationDependsOn block below, which
+// already evaluates the subprojects.
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+
+    afterEvaluate { proj ->
+        def androidExtension = proj.extensions.findByName("android")
+        if (androidExtension == null) {
+            return
+        }
+
+        if (androidExtension.namespace == null) {
+            def manifestFile = proj.file("src/main/AndroidManifest.xml")
+            if (manifestFile.exists()) {
+                def manifestPackage =
+                        new groovy.xml.XmlSlurper().parse(manifestFile)."@package".text()
+                if (manifestPackage) {
+                    androidExtension.namespace = manifestPackage
+                    proj.logger.lifecycle(
+                            "Applied namespace '${manifestPackage}' to legacy plugin ':${proj.name}'.")
+                }
+            }
+        }
+
+        def minimumCompileSdk = 34
+        def currentCompileSdk = androidExtension.compileSdkVersion
+        if (currentCompileSdk != null) {
+            def digits = currentCompileSdk.replaceAll(/[^0-9]/, "")
+            if (digits.isInteger() && digits.toInteger() < minimumCompileSdk) {
+                androidExtension.compileSdkVersion minimumCompileSdk
+                proj.logger.lifecycle(
+                        "Raised compileSdk of ':${proj.name}' from ${digits} to ${minimumCompileSdk}.")
+            }
+        }
+
+        // Old plugins still target Java 8 while Kotlin follows the JDK running
+        // Gradle (21 here), which Kotlin rejects as inconsistent. Put every
+        // module on the same target the app uses.
+        androidExtension.compileOptions {
+            sourceCompatibility JavaVersion.VERSION_17
+            targetCompatibility JavaVersion.VERSION_17
+        }
+        proj.tasks.withType(JavaCompile).configureEach {
+            sourceCompatibility = JavaVersion.VERSION_17.toString()
+            targetCompatibility = JavaVersion.VERSION_17.toString()
+        }
+        // Matched by class name so the root build script does not need the
+        // Kotlin Gradle plugin on its own classpath. Covers kapt stub
+        // generation as well, which is where the mismatch surfaced.
+        proj.tasks.configureEach { task ->
+            if (task.class.name.contains("KotlinCompile") ||
+                    task.class.name.contains("KaptGenerateStubs")) {
+                try {
+                    task.kotlinOptions.jvmTarget = "17"
+                } catch (Exception ignored) {
+                    // Task without kotlinOptions; nothing to align.
+                }
+            }
+        }
+    }
+}
+
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
