@@ -33,7 +33,8 @@ für Android und Windows.
 
 ## Installation
 
-Fertige Dateien liegen unter [Releases](../../releases):
+Fertige Dateien liegen unter
+[Releases](https://github.com/laufish44/digitales_register-main/releases):
 
 * **Windows** — `...-setup.exe`, ein normaler Installations-Assistent
   (Startmenü-Eintrag, optionale Desktop-Verknüpfung, Deinstallierer).

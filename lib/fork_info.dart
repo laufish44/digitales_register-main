@@ -29,9 +29,12 @@ const forkDisplayName = "Digitales Register";
 
 /// The repository this build was made from.
 ///
-/// Empty until the fork has a home; the about box then falls back to the
-/// original project so the source is still reachable.
-const forkSourceUrl = String.fromEnvironment("DR_SOURCE_URL");
+/// A build can point somewhere else with
+/// `--dart-define=DR_SOURCE_URL=https://github.com/user/repo`.
+const forkSourceUrl = String.fromEnvironment(
+  "DR_SOURCE_URL",
+  defaultValue: "https://github.com/laufish44/digitales_register-main",
+);
 
 /// Who maintains this fork.
 const forkAuthor = "Laurin Feichter";

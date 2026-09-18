@@ -491,9 +491,13 @@ String formatMinutesOfDay(int minutes) {
 
 /// Where updates come from.
 ///
-/// Empty until a release address is entered in the settings; a GitHub
-/// repository address is the expected form.
-const defaultUpdateReleaseUrl = String.fromEnvironment("DR_RELEASE_URL");
+/// The releases of this fork's own repository. A build can point elsewhere with
+/// `--dart-define=DR_RELEASE_URL=…`, and the user can change it in the
+/// settings; an empty value switches the update check off.
+const defaultUpdateReleaseUrl = String.fromEnvironment(
+  "DR_RELEASE_URL",
+  defaultValue: "https://github.com/laufish44/digitales_register-main",
+);
 
 /// One configuration per known card, with the type's own defaults filled in.
 ///
