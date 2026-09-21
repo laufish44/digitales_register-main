@@ -68,11 +68,14 @@ class DashboardWidgetData {
 Widget buildDashboardWidget({
   required DashboardWidgetConfig config,
   required DashboardWidgetData data,
-  VoidCallback? onOpenCalendar,
+  /// Opens the calendar on a given day, not just "somewhere".
+  void Function(UtcDateTime date)? onOpenCalendarAt,
   VoidCallback? onOpenAbsences,
   VoidCallback? onOpenGrades,
   VoidCallback? onOpenMessages,
 }) {
+  final onOpenCalendar =
+      onOpenCalendarAt == null ? null : () => onOpenCalendarAt(data.now);
   switch (config.type) {
     case upcomingWidgetId:
       return _UpcomingCard(config: config, data: data);
@@ -102,7 +105,7 @@ Widget buildDashboardWidget({
           config: config, data: data, onOpenAbsences: onOpenAbsences);
     case holidaysWidgetId:
       return _HolidaysCard(
-          config: config, data: data, onOpenCalendar: onOpenCalendar);
+          config: config, data: data, onOpenCalendarAt: onOpenCalendarAt);
     case messagesWidgetId:
       return _MessagesCard(
           config: config, data: data, onOpenMessages: onOpenMessages);
@@ -191,6 +194,7 @@ class _UpcomingCard extends StatelessWidget {
       within: Duration(days: config.daysAhead),
       includeHomework: config.includeHomework,
       includeExams: config.includeExams,
+      includeReminders: config.includeReminders,
     );
     if (config.maxEntries > 0 && entries.length > config.maxEntries) {
       entries = entries.sublist(0, config.maxEntries);
@@ -260,6 +264,7 @@ class _DayCard extends StatelessWidget {
       day: day,
       includeExams: config.includeExams,
       includeHomework: config.includeHomework,
+      includeReminders: config.includeReminders,
     );
     if (config.maxEntries > 0 && entries.length > config.maxEntries) {
       entries = entries.sublist(0, config.maxEntries);
@@ -285,7 +290,9 @@ class _DayCard extends StatelessWidget {
                   leading: Icon(
                     entry.isExam
                         ? Icons.assignment_late
-                        : Icons.assignment_outlined,
+                        : entry.isReminder
+                            ? Icons.push_pin_outlined
+                            : Icons.assignment_outlined,
                     color: entry.isExam ? theme.colorScheme.error : null,
                   ),
                   title: Text(entry.name),
@@ -309,12 +316,11 @@ class _DayCard extends StatelessWidget {
               times: data.lessonTimes,
             ),
           ),
-        ] else if (config.includeLessons)
+        ] else if (config.includeLessons && !_isSchoolDay(day))
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: Text(
-              "Die Stunden stehen im Kalender – einmal öffnen, dann sind sie "
-              "auch hier.",
+              "Kein Unterricht an diesem Tag.",
               style: theme.textTheme.bodySmall,
             ),
           ),
@@ -322,6 +328,12 @@ class _DayCard extends StatelessWidget {
     );
   }
 }
+
+/// Whether [day] could have lessons at all. The calendar is fetched for the
+/// whole year on login, so an empty weekday really means "no school", not
+/// "not loaded yet".
+bool _isSchoolDay(UtcDateTime day) =>
+    day.weekday != DateTime.sunday && day.weekday != DateTime.saturday;
 
 /// The lessons of a day, one row each, with the breaks drawn as empty space.
 ///
@@ -536,12 +548,12 @@ class _HolidaysCard extends StatelessWidget {
   const _HolidaysCard({
     required this.config,
     required this.data,
-    this.onOpenCalendar,
+    this.onOpenCalendarAt,
   });
 
   final DashboardWidgetConfig config;
   final DashboardWidgetData data;
-  final VoidCallback? onOpenCalendar;
+  final void Function(UtcDateTime date)? onOpenCalendarAt;
 
   @override
   Widget build(BuildContext context) {
@@ -564,7 +576,10 @@ class _HolidaysCard extends StatelessWidget {
               countdown.daysLabel,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            onTap: onOpenCalendar,
+            // Straight to the day the countdown names, not to today.
+            onTap: onOpenCalendarAt == null
+                ? null
+                : () => onOpenCalendarAt!(countdown.date),
           ),
       ],
     );
@@ -624,15 +639,20 @@ class _DaysChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final urgent = days <= 2;
-    final color = entry.warning || urgent
+    final background = entry.warning || urgent
         ? theme.colorScheme.error
         : theme.colorScheme.primary;
+    // The tint carries the urgency; the number itself stays in the normal text
+    // colour, which is black on a light theme and white on a dark one. Red on
+    // red was hard to read and did not say anything the box was not already
+    // saying.
+    final text = theme.colorScheme.onSurface;
     return Container(
       width: 48,
       height: 48,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+        color: background.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -641,7 +661,7 @@ class _DaysChip extends StatelessWidget {
           Text(
             days <= 0 ? "!" : "$days",
             style: theme.textTheme.titleMedium?.copyWith(
-              color: color,
+              color: text,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -651,7 +671,7 @@ class _DaysChip extends StatelessWidget {
                 : days == 1
                     ? "Tag"
                     : "Tage",
-            style: theme.textTheme.labelSmall?.copyWith(color: color),
+            style: theme.textTheme.labelSmall?.copyWith(color: text),
           ),
         ],
       ),

@@ -58,6 +58,7 @@ class SidebarContainer extends StatelessWidget {
           showCertificate: actions.routingActions.showCertificate.call,
           showGrades: actions.routingActions.showGrades.call,
           showMessages: actions.routingActions.showMessages.call,
+          showStatistics: actions.routingActions.showStatistics.call,
           showSettings: actions.routingActions.showSettings.call,
           otherAccounts: state.otherAccounts.toList(),
           selectAccount: actions.loginActions.selectAccount.call,
@@ -74,11 +75,7 @@ class SidebarContainer extends StatelessWidget {
           lastDayCountdown: state.lastDayCountdown,
           // Tapping a countdown opens the calendar at the week it points to,
           // which is the thing one actually wants to look at.
-          showCountdownDate: (date) {
-            actions.routingActions.showCalendar();
-            actions.calendarActions.setCurrentMonday(toMonday(date));
-            actions.calendarActions.load(toMonday(date));
-          },
+          showCountdownDate: (date) => openCalendarOn(actions, date),
         );
       },
       connect: (AppState state) {
@@ -97,6 +94,31 @@ class SidebarContainer extends StatelessWidget {
       },
     );
   }
+}
+
+/// Opens the calendar at [date] and selects that day.
+///
+/// Holidays often begin on a Saturday, and the calendar only lays out school
+/// days — so the first weekday of the break is what actually has a page. Just
+/// setting the week would leave the user to find the day themselves.
+void openCalendarOn(AppActions actions, UtcDateTime date) {
+  final day = firstWeekdayFrom(date);
+  final monday = toMonday(day);
+  actions.routingActions.showCalendar();
+  actions.calendarActions.setCurrentMonday(monday);
+  actions.calendarActions.load(monday);
+  actions.calendarActions.select(
+    CalendarSelection((b) => b..date = day),
+  );
+}
+
+/// [date] itself, or the next Monday when it falls on a weekend.
+UtcDateTime firstWeekdayFrom(UtcDateTime date) {
+  var day = UtcDateTime(date.year, date.month, date.day);
+  while (day.weekday == DateTime.saturday || day.weekday == DateTime.sunday) {
+    day = day.add(const Duration(days: 1));
+  }
+  return day;
 }
 
 abstract class SidebarViewModel

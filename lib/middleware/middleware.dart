@@ -42,6 +42,7 @@ import 'package:dr/container/certificate_container.dart';
 import 'package:dr/container/grades_page_container.dart';
 import 'package:dr/container/messages_container.dart';
 import 'package:dr/container/settings_page.dart';
+import 'package:dr/container/statistics_container.dart';
 import 'package:dr/data.dart';
 import 'package:dr/desktop.dart';
 import 'package:dr/file_actions.dart';
@@ -52,6 +53,7 @@ import 'package:dr/main.dart';
 import 'package:dr/notifications/notification_service.dart';
 import 'package:dr/notifications/notification_store.dart';
 import 'package:dr/notifications/notification_watcher.dart';
+import 'package:dr/school_year.dart';
 import 'package:dr/serializers.dart';
 import 'package:dr/ui/dialog.dart';
 import 'package:dr/ui/update_dialog.dart';
@@ -385,6 +387,8 @@ Future<void> _loggedIn(MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
   }
   await startWatchingForNotifications(api);
   unawaited(_checkForUpdate(api));
+  // Not awaited: it takes a minute or so and nothing on screen waits for it.
+  if (!action.payload.offlineOnly) unawaited(prefetchWholeCalendar(api));
 }
 
 /// Looks for a newer release once per session and offers it.

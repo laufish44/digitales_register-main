@@ -150,6 +150,15 @@ class _WidgetSettingsTile extends StatelessWidget {
             onChanged: (value) =>
                 onChanged(config.rebuild((b) => b..includeHomework = value)),
           ),
+        if (type.supports(DashboardWidgetOption.includeReminders))
+          SwitchListTile.adaptive(
+            dense: true,
+            title: const Text("Eigene Erinnerungen"),
+            subtitle: const Text("Was du dir selbst eingetragen hast"),
+            value: config.includeReminders,
+            onChanged: (value) =>
+                onChanged(config.rebuild((b) => b..includeReminders = value)),
+          ),
         if (type.supports(DashboardWidgetOption.includeLessons))
           SwitchListTile.adaptive(
             dense: true,
@@ -213,22 +222,13 @@ class _WidgetSettingsTile extends StatelessWidget {
 class _LessonTimeSettings extends StatelessWidget {
   const _LessonTimeSettings({
     required this.times,
-    required this.fromServer,
-    required this.serverTimes,
     required this.onChanged,
-    required this.onSetFromServer,
   });
 
-  /// What is stored — the table the user edits.
+  /// What is stored — the table the user edits, and the only source.
   final List<LessonTime> times;
 
-  final bool fromServer;
-
-  /// What the calendar reported, for "übernehmen".
-  final Map<int, LessonTime> serverTimes;
-
   final OnSettingChanged<List<LessonTime>> onChanged;
-  final OnSettingChanged<bool> onSetFromServer;
 
   void _replace(LessonTime updated) => onChanged([
         for (final time in times)
@@ -244,29 +244,19 @@ class _LessonTimeSettings extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SwitchListTile.adaptive(
-          title: const Text("Zeiten aus dem Stundenplan übernehmen"),
-          subtitle: Text(
-            fromServer
-                ? "Die Zeiten aus dem Register haben Vorrang vor der Tabelle"
-                : "Aus: es gilt die Tabelle unten. Das Register liefert zwar "
-                    "eigene Zeiten mit, die stimmen aber nicht überall",
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            "Nur diese Tabelle zählt. Die Zeiten, die das Register selbst "
+            "mitliefert, werden nicht verwendet.",
+            style: theme.textTheme.bodySmall,
           ),
-          value: fromServer,
-          onChanged: onSetFromServer,
         ),
         for (final time in sorted) ...[
           SizedBox(height: LessonTimes.spacingBefore(breaks[time.hour])),
           ListTile(
             dense: true,
             title: Text("${time.hour}. Stunde"),
-            subtitle: serverTimes[time.hour] == null ||
-                    serverTimes[time.hour] == time
-                ? null
-                : Text(
-                    "Stundenplan: ${serverTimes[time.hour]!.rangeLabel}",
-                    style: theme.textTheme.bodySmall,
-                  ),
             trailing: Text(
               time.rangeLabel,
               style: const TextStyle(fontWeight: FontWeight.w600),
@@ -298,26 +288,6 @@ class _LessonTimeSettings extends StatelessWidget {
               ),
             ),
           ],
-        ),
-        ListTile(
-          dense: true,
-          leading: const Icon(Icons.download),
-          title: const Text("Aus dem Stundenplan übernehmen"),
-          subtitle: Text(
-            serverTimes.isEmpty
-                ? "Dafür muss der Kalender einmal geladen sein"
-                : "${serverTimes.length} Stunden bekannt",
-          ),
-          enabled: serverTimes.isNotEmpty,
-          onTap: serverTimes.isEmpty
-              ? null
-              : () {
-                  // Keep the table's own entries for lessons the calendar has
-                  // not seen, so a free lesson does not vanish.
-                  final merged = {for (final t in sorted) t.hour: t}
-                    ..addAll(serverTimes);
-                  onChanged(merged.values.toList());
-                },
         ),
         ListTile(
           dense: true,
@@ -730,8 +700,8 @@ class SettingsPageWidget extends StatefulWidget {
   final OnSettingChanged<bool> onSetShowSchoolYearCountdown;
   final OnSettingChanged<int> onSetWeeklyLessons;
   final OnSettingChanged<bool> onSetShowAbsenceBudget;
-  final OnSettingChanged<List<LessonTime>> onSetLessonTimes;
-  final OnSettingChanged<bool> onSetLessonTimesFromServer;
+  final OnSettingChanged<List<LessonTime>> onSetLessonSchedule;
+  final OnSettingChanged<bool> onSetPrefetchWholeCalendar;
   final VoidCallback onShowProfile;
   final SettingsViewModel vm;
 
@@ -776,8 +746,8 @@ class SettingsPageWidget extends StatefulWidget {
     required this.onSetShowSchoolYearCountdown,
     required this.onSetWeeklyLessons,
     required this.onSetShowAbsenceBudget,
-    required this.onSetLessonTimes,
-    required this.onSetLessonTimesFromServer,
+    required this.onSetLessonSchedule,
+    required this.onSetPrefetchWholeCalendar,
   });
 
   @override
@@ -1387,11 +1357,17 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
                 "die Pausen"),
           ),
           _LessonTimeSettings(
-            times: widget.vm.lessonTimes,
-            fromServer: widget.vm.lessonTimesFromServer,
-            serverTimes: widget.vm.serverLessonTimes,
-            onChanged: widget.onSetLessonTimes,
-            onSetFromServer: widget.onSetLessonTimesFromServer,
+            times: widget.vm.lessonSchedule,
+            onChanged: widget.onSetLessonSchedule,
+          ),
+          const Divider(),
+          SwitchListTile.adaptive(
+            title: const Text("Ganzen Kalender beim Start laden"),
+            subtitle: const Text(
+                "Holt beim Anmelden das ganze Schuljahr im Hintergrund – "
+                "nötig für Suche, Statistik und die Fächer bei den Absenzen"),
+            onChanged: widget.onSetPrefetchWholeCalendar,
+            value: widget.vm.prefetchWholeCalendar,
           ),
           const Divider(),
           ListTile(

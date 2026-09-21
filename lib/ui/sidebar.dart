@@ -39,6 +39,7 @@ class Sidebar extends StatelessWidget {
     required this.showCalendar,
     required this.showCertificate,
     required this.showMessages,
+    required this.showStatistics,
     required this.showSettings,
     required this.logout,
     required this.otherAccounts,
@@ -64,6 +65,7 @@ class Sidebar extends StatelessWidget {
       showCalendar,
       showCertificate,
       showMessages,
+      showStatistics,
       showSettings,
       logout,
       addAccount;
@@ -170,6 +172,12 @@ class Sidebar extends StatelessWidget {
           icon: Icons.message,
           isSelected: currentSelected == Pages.messages,
           onPressed: showMessages,
+        ),
+        CollapsibleItem(
+          text: "Statistik",
+          icon: Icons.insights,
+          isSelected: currentSelected == Pages.statistics,
+          onPressed: showStatistics,
         ),
         // The countdowns sit with the navigation because CollapsibleSidebar
         // only lays out items; its `body` is below the fold and never visible

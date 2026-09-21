@@ -17,6 +17,7 @@
 
 import 'package:built_collection/built_collection.dart';
 import 'package:dr/app_state.dart';
+import 'package:dr/container/sidebar_container.dart' show firstWeekdayFrom;
 import 'package:dr/data.dart';
 import 'package:dr/reducer/settings.dart';
 import 'package:dr/school_year.dart';
@@ -215,9 +216,64 @@ void main() {
           ],
         }),
         now: UtcDateTime(2026, 3, 10, 12, 0),
+        includeCalendar: true,
       );
       expect(entries, hasLength(1));
       expect(entries.single.daysFrom(_today), 0);
+    });
+
+    // The homework tab already lists everything the dashboard knows, and the
+    // calendar reports the same entries again - so a card fed from both showed
+    // each one twice. The cards read the dashboard only.
+    test("ignores the calendar unless asked", () {
+      final calendar = _calendar({
+        UtcDateTime(2026, 3, 12): [
+          _calendarEntry(
+            id: 1,
+            name: "Test",
+            deadline: UtcDateTime(2026, 3, 12, 9, 20),
+          ),
+        ],
+      });
+
+      expect(ExamCountdown.upcoming(calendar, now: _today), isEmpty);
+      expect(
+        ExamCountdown.upcoming(calendar, now: _today, includeCalendar: true),
+        hasLength(1),
+      );
+    });
+
+    test("shows the user's own reminders even without homework", () {
+      final dashboard = _dashboard({
+        UtcDateTime(2026, 3, 12): [
+          _dashboardEntry(
+              id: 1, title: "Zahnarzt", type: HomeworkType.homework),
+          _dashboardEntry(id: 2, title: "Seite 41"),
+        ],
+      });
+
+      // Homework off, reminders on: only the self-written note survives.
+      final entries = ExamCountdown.upcoming(CalendarState(),
+          dashboard: dashboard, now: _today);
+      expect(entries.map((e) => e.name), ["Zahnarzt"]);
+      expect(entries.single.isReminder, isTrue);
+      expect(entries.single.isExam, isFalse);
+      expect(entries.single.isHomework, isFalse);
+    });
+
+    test("reminders can be switched off on their own", () {
+      final entries = ExamCountdown.upcoming(
+        CalendarState(),
+        dashboard: _dashboard({
+          UtcDateTime(2026, 3, 12): [
+            _dashboardEntry(
+                id: 1, title: "Zahnarzt", type: HomeworkType.homework),
+          ],
+        }),
+        now: _today,
+        includeReminders: false,
+      );
+      expect(entries, isEmpty);
     });
 
     test("includes the last day of the window", () {
@@ -562,6 +618,26 @@ void main() {
       expect(byName["Winterferien"]!.end, UtcDateTime(2027, 2, 12));
     });
 
+    // Holidays regularly start on a Saturday, and the calendar only lays out
+    // school days - so tapping the countdown has to land on the first weekday
+    // of the break, not on a page that does not exist.
+    test("the first weekday of a break skips the weekend", () {
+      // 24 December 2026 is a Thursday, 26 December a Saturday.
+      expect(firstWeekdayFrom(UtcDateTime(2026, 12, 24)),
+          UtcDateTime(2026, 12, 24));
+      expect(firstWeekdayFrom(UtcDateTime(2026, 12, 26)),
+          UtcDateTime(2026, 12, 28));
+      expect(firstWeekdayFrom(UtcDateTime(2026, 12, 27)),
+          UtcDateTime(2026, 12, 28));
+    });
+
+    test("the first weekday drops the time of day", () {
+      expect(
+        firstWeekdayFrom(UtcDateTime(2026, 12, 24, 17, 30)),
+        UtcDateTime(2026, 12, 24),
+      );
+    });
+
     test("counts school days without weekends and holidays", () {
       // 30 March to 10 April 2026: ten weekdays, six of them Easter holidays.
       expect(
@@ -646,12 +722,19 @@ void main() {
       expect(ids, hasLength(dashboardWidgetTypes.length));
     });
 
-    test("the upcoming card leaves homework out by default", () {
+    test("the upcoming card leaves homework out but keeps reminders", () {
       final upcoming =
           defaultDashboardWidgets.firstWhere((c) => c.type == upcomingWidgetId);
       expect(upcoming.includeHomework, isFalse);
       expect(upcoming.includeExams, isTrue);
-      expect(upcoming.enabled, isTrue);
+      expect(upcoming.includeReminders, isTrue);
+    });
+
+    // The homework tab below already shows everything, so a card on top of it
+    // is a deliberate choice rather than the default.
+    test("no card is on by default", () {
+      expect(defaultEnabledWidgetIds, isEmpty);
+      expect(defaultDashboardWidgets.every((c) => !c.enabled), isTrue);
     });
 
     test("reconciling adds new types and drops unknown ones", () {

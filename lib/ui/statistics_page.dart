@@ -26,6 +26,7 @@ import 'package:dr/stats.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart';
 import 'package:flutter/material.dart';
+import 'package:responsive_scaffold/responsive_scaffold.dart';
 
 const _weekdayNames = {
   DateTime.monday: "Montag",
@@ -79,7 +80,7 @@ class StatisticsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Statistik")),
+      appBar: const ResponsiveAppBar(title: Text("Statistik")),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 32),
         children: [
@@ -375,6 +376,7 @@ class _AbsenceStatistics extends StatelessWidget {
 
     final worstLesson = _largestKey(byLesson);
     final worstWeekday = _largestKey(byWeekday);
+    final lessonsPerDay = _averageLessonsPerDay(calendar);
 
     return _Section(
       title: "Absenzen",
@@ -413,6 +415,20 @@ class _AbsenceStatistics extends StatelessWidget {
                 : "${budget.remainingLessons.floor()} Stunden",
             hint: "Grenze: $limitPercentage %",
           ),
+          if (!budget.exceeded && lessonsPerDay > 0)
+            _Row(
+              label: "Das sind",
+              value:
+                  "${budget.perDay(lessonsPerDay).floor()} ganze Schultage",
+              hint: "bei ${gradeAverageFormat.format(lessonsPerDay)} "
+                  "Stunden am Tag",
+            ),
+          if (!budget.exceeded && lessonsPerDay > 0)
+            _Row(
+              label: "Oder",
+              value: "${(budget.remainingLessons / (lessonsPerDay * 5))
+                  .floor()} ganze Schulwochen",
+            ),
         ],
         if (byLesson.isNotEmpty) ...[
           const Divider(),
@@ -487,6 +503,25 @@ class _AbsenceStatistics extends StatelessWidget {
       ],
     );
   }
+}
+
+/// How many lessons an average school day has, from the calendar.
+///
+/// Days without lessons are left out, so holidays and weekends do not drag the
+/// figure down. Zero when the calendar is empty — the rows that use it are then
+/// simply not shown rather than dividing by nothing.
+double _averageLessonsPerDay(CalendarState calendar) {
+  var days = 0, lessons = 0;
+  for (final day in calendar.days.values) {
+    var count = 0;
+    for (final hour in day.hours) {
+      count += hour.length;
+    }
+    if (count == 0) continue;
+    days++;
+    lessons += count;
+  }
+  return days == 0 ? 0 : lessons / days;
 }
 
 class _EntryStatistics extends StatelessWidget {

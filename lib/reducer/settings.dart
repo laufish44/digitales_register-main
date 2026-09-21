@@ -95,11 +95,11 @@ final settingsReducerBuilder = NestedReducerBuilder<AppState, AppStateBuilder,
   ..add(SettingsActionsNames.setShowAbsenceBudget,
       (s, a, b) => b.showAbsenceBudget = a.payload)
   ..add(
-      SettingsActionsNames.setLessonTimes,
-      (s, a, b) => b.lessonTimes
+      SettingsActionsNames.setLessonSchedule,
+      (s, a, b) => b.lessonSchedule
           .replace(LessonTimes.normalize(a.payload).where(_isSaneLessonTime)))
-  ..add(SettingsActionsNames.setLessonTimesFromServer,
-      (s, a, b) => b.lessonTimesFromServer = a.payload);
+  ..add(SettingsActionsNames.setPrefetchWholeCalendar,
+      (s, a, b) => b.prefetchWholeCalendar = a.payload);
 
 /// Drops entries that cannot be a lesson, so a mistyped time cannot make the
 /// timetable nonsensical.

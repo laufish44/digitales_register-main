@@ -29,6 +29,7 @@ enum DashboardWidgetOption {
   includeHomework,
   includeExams,
   includeLessons,
+  includeReminders,
   maxEntries,
   daysAhead,
   compact,
@@ -45,6 +46,7 @@ class DashboardWidgetType {
     this.defaultIncludeHomework = true,
     this.defaultIncludeExams = true,
     this.defaultIncludeLessons = false,
+    this.defaultIncludeReminders = true,
   });
 
   /// Stored in the settings; must stay stable.
@@ -58,6 +60,7 @@ class DashboardWidgetType {
 
   final int defaultMaxEntries, defaultDaysAhead;
   final bool defaultIncludeHomework, defaultIncludeExams, defaultIncludeLessons;
+  final bool defaultIncludeReminders;
 
   bool supports(DashboardWidgetOption option) => options.contains(option);
 }
@@ -78,6 +81,7 @@ const dashboardWidgetTypes = <DashboardWidgetType>[
     options: {
       DashboardWidgetOption.includeExams,
       DashboardWidgetOption.includeHomework,
+      DashboardWidgetOption.includeReminders,
       DashboardWidgetOption.daysAhead,
       DashboardWidgetOption.maxEntries,
       DashboardWidgetOption.compact,
@@ -91,6 +95,7 @@ const dashboardWidgetTypes = <DashboardWidgetType>[
     options: {
       DashboardWidgetOption.includeExams,
       DashboardWidgetOption.includeHomework,
+      DashboardWidgetOption.includeReminders,
       DashboardWidgetOption.includeLessons,
       DashboardWidgetOption.maxEntries,
       DashboardWidgetOption.compact,
@@ -103,6 +108,7 @@ const dashboardWidgetTypes = <DashboardWidgetType>[
     options: {
       DashboardWidgetOption.includeExams,
       DashboardWidgetOption.includeHomework,
+      DashboardWidgetOption.includeReminders,
       DashboardWidgetOption.includeLessons,
       DashboardWidgetOption.maxEntries,
       DashboardWidgetOption.compact,
@@ -150,8 +156,9 @@ DashboardWidgetType? dashboardWidgetTypeById(String id) {
   return null;
 }
 
-/// Which cards a fresh installation starts with.
+/// Which cards a fresh installation starts with: none.
 ///
-/// Only the two that need no extra request are on by default; the rest are one
-/// switch away in the settings.
-const defaultEnabledWidgetIds = <String>[upcomingWidgetId, tomorrowWidgetId];
+/// The homework tab below already lists everything, so a card on top of it is
+/// a deliberate choice rather than something to be talked out of. Every type
+/// still appears in the settings, one switch away.
+const defaultEnabledWidgetIds = <String>[];

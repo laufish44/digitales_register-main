@@ -107,10 +107,10 @@ class SettingsPageContainer extends StatelessWidget {
           onSetWeeklyLessons: actions.settingsActions.setWeeklyLessons.call,
           onSetShowAbsenceBudget:
               actions.settingsActions.setShowAbsenceBudget.call,
-          onSetLessonTimes: (list) =>
-              actions.settingsActions.setLessonTimes(BuiltList(list)),
-          onSetLessonTimesFromServer:
-              actions.settingsActions.setLessonTimesFromServer.call,
+          onSetLessonSchedule: (list) =>
+              actions.settingsActions.setLessonSchedule(BuiltList(list)),
+          onSetPrefetchWholeCalendar:
+              actions.settingsActions.setPrefetchWholeCalendar.call,
         );
       },
       connect: (state) {
@@ -158,11 +158,8 @@ class SettingsViewModel {
   final bool showSchoolYearCountdown;
   final int weeklyLessons;
   final bool showAbsenceBudget;
-  final List<LessonTime> lessonTimes;
-  final bool lessonTimesFromServer;
-
-  /// What the calendar reported, so the settings can offer to adopt it.
-  final Map<int, LessonTime> serverLessonTimes;
+  final List<LessonTime> lessonSchedule;
+  final bool prefetchWholeCalendar;
   final List<String> allSubjects;
   final List<String> ignoreForGradesAverage;
   final BuiltMap<String, SubjectTheme> subjectThemes;
@@ -213,8 +210,8 @@ class SettingsViewModel {
         showSchoolYearCountdown = state.settingsState.showSchoolYearCountdown,
         weeklyLessons = state.settingsState.weeklyLessons,
         showAbsenceBudget = state.settingsState.showAbsenceBudget,
-        lessonTimes = state.settingsState.lessonTimes.toList(),
-        lessonTimesFromServer = state.settingsState.lessonTimesFromServer,
-        serverLessonTimes = LessonTimes.fromCalendar(state.calendarState),
+        lessonSchedule =
+            LessonTimes.resolve(state.settingsState.lessonSchedule),
+        prefetchWholeCalendar = state.settingsState.prefetchWholeCalendar,
         demoMode = state.isDemo;
 }

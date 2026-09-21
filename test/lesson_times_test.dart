@@ -118,163 +118,43 @@ void main() {
     });
   });
 
-  group("reading the calendar", () {
-    test("takes one time per lesson out of a block", () {
-      // A double lesson: hours 2 and 3 in one block, two spans.
-      final times = LessonTimes.fromCalendar(_calendar([
-        _block(fromHour: 2, toHour: 3, spans: [
-          [8, 35, 9, 25],
-          [9, 30, 10, 20],
-        ]),
-      ]));
+  group("resolve", () {
+    // The register reports times of its own on every calendar lesson. They run
+    // a quarter of an hour earlier than this school actually does, so they are
+    // ignored outright rather than merged in - mixing the two produced
+    // overlapping lessons and no way to tell which source was showing.
+    test("returns the table and nothing else", () {
+      final table = [_time(1, 8, 0, 8, 50), _time(2, 8, 50, 9, 40)];
+      final resolved = LessonTimes.resolve(table);
 
-      expect(times[2]!.rangeLabel, "08:35–09:25");
-      expect(times[3]!.rangeLabel, "09:30–10:20");
+      expect(resolved.map((t) => t.rangeLabel), ["08:00–08:50", "08:50–09:40"]);
     });
 
-    test("matches what the real register returned", () {
-      // Taken from a live response of wfo-bruneck on 2026-09-14. The seventh
-      // lesson is missing there because this student does not have it.
-      final times = LessonTimes.fromCalendar(_calendar([
+    test("does not look at the calendar at all", () {
+      // A calendar full of contradicting times changes nothing.
+      final calendar = _calendar([
         _block(fromHour: 1, toHour: 1, spans: [
           [7, 45, 8, 35]
         ]),
-        _block(fromHour: 2, toHour: 3, spans: [
-          [8, 35, 9, 25],
-          [9, 30, 10, 20],
-        ]),
-        _block(fromHour: 4, toHour: 4, spans: [
-          [10, 20, 11, 10]
-        ]),
-        _block(fromHour: 5, toHour: 6, spans: [
-          [11, 25, 12, 15],
-          [12, 15, 13, 5],
-        ]),
-      ]));
+      ]);
+      expect(calendar.days, isNotEmpty, reason: "fixture sanity");
 
-      expect(times.keys.toList()..sort(), [1, 2, 3, 4, 5, 6]);
-      expect(times[1]!.rangeLabel, "07:45–08:35");
-      expect(times[5]!.rangeLabel, "11:25–12:15");
-      // Same break structure as the default, a quarter of an hour earlier.
-      final breaks = LessonTimes.breaksBefore(times.values.toList());
-      expect(breaks[3], 5);
-      expect(breaks[5], 15);
+      final resolved = LessonTimes.resolve([_time(1, 8, 0, 8, 50)]);
+      expect(resolved.single.rangeLabel, "08:00–08:50");
     });
 
-    test("ignores a span that does not describe a lesson", () {
-      final times = LessonTimes.fromCalendar(_calendar([
-        _block(fromHour: 1, toHour: 1, spans: [
-          [9, 0, 9, 0]
-        ]),
-      ]));
-      expect(times, isEmpty);
-    });
-
-    test("does not invent lessons past the end of the block", () {
-      final times = LessonTimes.fromCalendar(_calendar([
-        _block(fromHour: 1, toHour: 1, spans: [
-          [8, 0, 8, 50],
-          [8, 50, 9, 40],
-        ]),
-      ]));
-      expect(times.keys, [1]);
-    });
-  });
-
-  group("resolve", () {
-    final configured = [
-      _time(1, 8, 0, 8, 50),
-      _time(2, 8, 50, 9, 40),
-      _time(7, 13, 20, 14, 10),
-    ];
-
-    test("the table wins by default, even where the server disagrees", () {
+    test("comes out sorted by lesson", () {
       final resolved = LessonTimes.resolve(
-        configured: configured,
-        calendar: _calendar([
-          _block(fromHour: 1, toHour: 1, spans: [
-            [7, 45, 8, 35]
-          ]),
-        ]),
-      );
-
-      expect(resolved.map((t) => t.hour), [1, 2, 7]);
-      expect(resolved.first.rangeLabel, "08:00–08:50", reason: "from table");
-      expect(resolved.last.rangeLabel, "13:20–14:10");
-    });
-
-    test("lets the server win when that is switched on", () {
-      final resolved = LessonTimes.resolve(
-        configured: configured,
-        preferServer: true,
-        calendar: _calendar([
-          _block(fromHour: 1, toHour: 1, spans: [
-            [7, 45, 8, 35]
-          ]),
-        ]),
-      );
-      expect(resolved.first.rangeLabel, "07:45–08:35");
-      // The seventh is free for this student, so only the table has it.
-      expect(LessonTimes.forHour(resolved, 7)!.rangeLabel, "13:20–14:10");
-    });
-
-    test("fills lessons the table does not mention at all", () {
-      final resolved = LessonTimes.resolve(
-        configured: configured,
-        calendar: _calendar([
-          _block(fromHour: 9, toHour: 9, spans: [
-            [15, 0, 15, 50]
-          ]),
-        ]),
-      );
-      expect(resolved.map((t) => t.hour), [1, 2, 7, 9]);
-    });
-
-    test("never returns two lessons at the same time", () {
-      // The real case: the table runs a quarter of an hour later than this
-      // school, so the server's eighth lesson (13:50-14:40) sits on top of the
-      // table's seventh (13:20-14:10). The table is the authority, so the
-      // server's entry is the one that goes.
-      final resolved = LessonTimes.resolve(
-        configured: defaultLessonTimes,
-        calendar: _calendar([
-          _block(fromHour: 8, toHour: 8, spans: [
-            [13, 50, 14, 40]
-          ]),
-        ]),
-      );
-
-      expect(LessonTimes.forHour(resolved, 7)!.rangeLabel, "13:20–14:10");
-      expect(LessonTimes.forHour(resolved, 8)!.rangeLabel, "14:10–15:00",
-          reason: "the table's own eighth, not the server's");
-      _expectNoOverlaps(resolved);
-    });
-
-    test("drops a table entry the server contradicts, the other way round", () {
-      final resolved = LessonTimes.resolve(
-        configured: defaultLessonTimes,
-        preferServer: true,
-        calendar: _calendar([
-          _block(fromHour: 6, toHour: 6, spans: [
-            [12, 15, 13, 5]
-          ]),
-          _block(fromHour: 8, toHour: 8, spans: [
-            [13, 50, 14, 40]
-          ]),
-        ]),
-      );
-
-      expect(resolved.any((t) => t.hour == 7), isFalse);
-      expect(LessonTimes.label(resolved, 7), "7. Stunde");
-      _expectNoOverlaps(resolved);
-    });
-
-    test("comes out sorted", () {
-      final resolved = LessonTimes.resolve(
-        configured: [_time(3, 9, 45, 10, 35), _time(1, 8, 0, 8, 50)],
-        calendar: CalendarState(),
-      );
+          [_time(3, 9, 45, 10, 35), _time(1, 8, 0, 8, 50)]);
       expect(resolved.map((t) => t.hour), [1, 3]);
+    });
+
+    test("the default table never overlaps itself", () {
+      _expectNoOverlaps(LessonTimes.resolve(defaultLessonTimes));
+    });
+
+    test("an empty table stays empty", () {
+      expect(LessonTimes.resolve(const []), isEmpty);
     });
   });
 

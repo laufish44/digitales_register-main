@@ -18,7 +18,6 @@
 import 'package:built_collection/built_collection.dart';
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
-import 'package:dr/container/statistics_container.dart';
 import 'package:dr/lesson_times.dart';
 import 'package:dr/ui/absences_page.dart';
 import 'package:dr/utc_date_time.dart';
@@ -43,14 +42,6 @@ class AbsencesPageContainer extends StatelessWidget {
           lastSchoolDay: vm.lastSchoolDay,
           calendar: vm.calendar,
           lessonTimes: vm.lessonTimes,
-          // The root navigator, not the nested one the content area uses, so
-          // the page covers the whole window in tablet mode too.
-          onShowStatistics: () => Navigator.of(context, rootNavigator: true)
-              .push(
-            MaterialPageRoute<void>(
-              builder: (_) => const StatisticsPageContainer(),
-            ),
-          ),
           onAddFutureAbsence: actions.absencesActions.addFutureAbsence.call,
           onRemoveFutureAbsence:
               actions.absencesActions.removeFutureAbsence.call,
@@ -76,11 +67,7 @@ class AbsencesPageViewModel {
         holidays = state.settingsState.holidays.toList(),
         lastSchoolDay = state.settingsState.lastSchoolDay,
         calendar = state.calendarState,
-        lessonTimes = LessonTimes.resolve(
-          configured: state.settingsState.lessonTimes,
-          calendar: state.calendarState,
-          preferServer: state.settingsState.lessonTimesFromServer,
-        ),
+        lessonTimes = LessonTimes.resolve(state.settingsState.lessonSchedule),
         maxHour = _maxHour(state);
 
   final AbsencesState state;
@@ -96,7 +83,7 @@ class AbsencesPageViewModel {
   /// The timetable is the better source — it covers lessons this student does
   /// not have (the seventh, say) and is there before any calendar is loaded.
   static int _maxHour(AppState state) {
-    var max = LessonTimes.maxHour(state.settingsState.lessonTimes);
+    var max = LessonTimes.maxHour(state.settingsState.lessonSchedule);
     for (final day in state.calendarState.days.values) {
       for (final hour in day.hours) {
         if (hour.toHour > max) max = hour.toHour;

@@ -17,16 +17,14 @@
 
 /// When the lessons of a day run.
 ///
-/// The register does report real times — every lesson in the calendar carries a
-/// `timeStartObject`/`timeEndObject`, which the app already parses into
-/// [CalendarHour.timeSpans]. But that only covers the weeks that have been
-/// fetched, and nothing at all before the calendar is opened for the first
-/// time. So there is a table in the settings as well: it is what the app shows
-/// when the calendar has nothing to say, and the user can correct it.
+/// One source only: the table in the settings. The register does report times
+/// of its own on every calendar lesson, but they are not the ones this school
+/// actually keeps — they run a quarter of an hour early — so they are ignored
+/// rather than mixed in. Mixing two disagreeing sources produced a timetable
+/// with overlapping lessons and no obvious way to tell which one was showing.
 library;
 
 import 'package:dr/app_state.dart';
-import 'package:dr/utc_date_time.dart';
 
 /// A break shorter than this is drawn as a hairline, anything longer gets a
 /// visible gap. Five minutes between two lessons is "walk to the next room",
@@ -60,85 +58,14 @@ List<LessonTime> _build(List<List<int>> rows) => [
           ..endMinutes = rows[i][1]),
     ];
 
-int _minutesOfDay(UtcDateTime time) => time.hour * 60 + time.minute;
-
 class LessonTimes {
   LessonTimes._();
 
-  /// The times the calendar actually reported, by lesson number.
-  ///
-  /// A lesson block spanning several lessons carries one time span per lesson,
-  /// in order, so `fromHour + n` belongs to `timeSpans[n]`. Days the calendar
-  /// has not seen simply contribute nothing.
-  static Map<int, LessonTime> fromCalendar(CalendarState calendar) {
-    final result = <int, LessonTime>{};
-    for (final day in calendar.days.values) {
-      for (final lesson in day.hours) {
-        for (var index = 0; index < lesson.timeSpans.length; index++) {
-          final hour = lesson.fromHour + index;
-          if (hour > lesson.toHour) break;
-          final span = lesson.timeSpans[index];
-          final start = _minutesOfDay(span.from);
-          final end = _minutesOfDay(span.to);
-          // A span that ends before it starts crossed midnight or is broken;
-          // either way it is not a school lesson.
-          if (end <= start) continue;
-          result.putIfAbsent(
-            hour,
-            () => LessonTime((b) => b
-              ..hour = hour
-              ..startMinutes = start
-              ..endMinutes = end),
-          );
-        }
-      }
-    }
+  /// The schedule to show: the table, sorted, with nothing else mixed in.
+  static List<LessonTime> resolve(Iterable<LessonTime> configured) {
+    final result = List.of(configured)
+      ..sort((a, b) => a.hour.compareTo(b.hour));
     return result;
-  }
-
-  /// The schedule to show, from the table and the calendar.
-  ///
-  /// [preferServer] decides which of the two is the authority; the other only
-  /// fills lessons the first one does not mention at all, and only where it
-  /// does not contradict it. Two lessons at the same time are never returned —
-  /// the timetable has to make sense, whichever source it came from.
-  ///
-  /// The overlap check is not theoretical. A table that is a quarter of an hour
-  /// off from what the calendar reports puts its seventh lesson on top of the
-  /// calendar's eighth; without the check the app would show both.
-  ///
-  /// Sorted by lesson number, with no duplicates.
-  static List<LessonTime> resolve({
-    required Iterable<LessonTime> configured,
-    required CalendarState calendar,
-    bool preferServer = false,
-  }) {
-    final table = <int, LessonTime>{
-      for (final time in configured) time.hour: time,
-    };
-    final server = fromCalendar(calendar);
-
-    final authority = preferServer ? server : table;
-    final filler = preferServer ? table : server;
-
-    final result = Map.of(authority);
-    for (final entry in filler.entries) {
-      if (result.containsKey(entry.key)) continue;
-      if (_overlapsAny(entry.value, authority.values)) continue;
-      result[entry.key] = entry.value;
-    }
-
-    return result.values.toList()..sort((a, b) => a.hour.compareTo(b.hour));
-  }
-
-  static bool _overlapsAny(LessonTime time, Iterable<LessonTime> others) {
-    for (final other in others) {
-      if (time.startMinutes < other.endMinutes &&
-          other.startMinutes < time.endMinutes) {
-        return true;
-      }
-    }
-    return false;
   }
 
   /// The entry for [hour], or null when nothing is known about it.

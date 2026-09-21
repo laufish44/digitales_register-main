@@ -525,7 +525,9 @@ class ExamCountdown {
     Duration within = const Duration(days: 30),
     bool includeHomework = false,
     bool includeExams = true,
+    bool includeReminders = true,
     bool includeDone = false,
+    bool includeCalendar = false,
   }) {
     final limit = now.add(within);
     // Compare by day: a test at 09:20 today is still "today", and a deadline of
@@ -533,7 +535,11 @@ class ExamCountdown {
     final today = UtcDateTime(now.year, now.month, now.day);
     final lastDay = UtcDateTime(limit.year, limit.month, limit.day);
 
-    final all = Agenda.collect(calendar: calendar, dashboard: dashboard);
+    final all = Agenda.collect(
+      calendar: calendar,
+      dashboard: dashboard,
+      includeCalendar: includeCalendar,
+    );
     final done = _doneIdentities(all);
 
     return _sortAndDeduplicate(
@@ -542,7 +548,11 @@ class ExamCountdown {
             entry.deadline.year, entry.deadline.month, entry.deadline.day);
         if (due.isBefore(today) || due.isAfter(lastDay)) return false;
         if (!includeDone && done.contains(entry.identity)) return false;
-        return entry.isExam ? includeExams : includeHomework;
+        return entry.matches(
+          includeExams: includeExams,
+          includeHomework: includeHomework,
+          includeReminders: includeReminders,
+        );
       }),
     );
   }
@@ -573,15 +583,24 @@ class Agenda {
 
   /// Every homework and exam entry the app currently knows about.
   ///
-  /// Duplicates are possible — [ExamCountdown._sortAndDeduplicate] and
+  /// [includeCalendar] is off for the dashboard cards: the calendar reports the
+  /// same entries a second time, which the homework tab is already showing, so
+  /// counting it there would only produce duplicates. Search and the statistics
+  /// do want everything and switch it on.
+  ///
+  /// Duplicates are still possible within one source — an entry appears once
+  /// per lesson of the day — so [ExamCountdown._sortAndDeduplicate] and
   /// [forDay] remove them.
   static List<UpcomingExam> collect({
     required CalendarState calendar,
     DashboardState? dashboard,
+    bool includeCalendar = true,
   }) {
     final entries = <UpcomingExam>[];
 
-    for (final day in calendar.days.values) {
+    for (final day in includeCalendar
+        ? calendar.days.values
+        : const Iterable<CalendarDay>.empty()) {
       for (final hour in day.hours) {
         for (final exam in hour.homeworkExams) {
           entries.add(
@@ -615,13 +634,18 @@ class Agenda {
         // from the same `homework == 0` the calendar uses).
         final isExam =
             homework.warning || homework.type == HomeworkType.gradeGroup;
+        // `homework` is the type the register gives the notes the user wrote
+        // themselves ("Erinnerung"), as opposed to `lessonHomework`, which the
+        // teacher entered.
+        final isReminder = homework.type == HomeworkType.homework;
         entries.add(
           UpcomingExam(
             name: homework.title,
             subject: homework.label ?? "",
             typeName: homework.subtitle,
             deadline: day.date,
-            isExam: isExam,
+            isExam: isExam && !isReminder,
+            isReminder: isReminder,
             warning: homework.warning,
             done: homework.checkable && homework.checked,
           ),
@@ -639,10 +663,16 @@ class Agenda {
     required UtcDateTime day,
     bool includeExams = true,
     bool includeHomework = true,
+    bool includeReminders = true,
     bool includeDone = false,
+    bool includeCalendar = false,
   }) {
     final wanted = UtcDateTime(day.year, day.month, day.day);
-    final all = collect(calendar: calendar, dashboard: dashboard);
+    final all = collect(
+      calendar: calendar,
+      dashboard: dashboard,
+      includeCalendar: includeCalendar,
+    );
     final done = ExamCountdown._doneIdentities(all);
 
     return ExamCountdown._sortAndDeduplicate(
@@ -651,7 +681,11 @@ class Agenda {
             entry.deadline.year, entry.deadline.month, entry.deadline.day);
         if (due != wanted) return false;
         if (!includeDone && done.contains(entry.identity)) return false;
-        return entry.isExam ? includeExams : includeHomework;
+        return entry.matches(
+          includeExams: includeExams,
+          includeHomework: includeHomework,
+          includeReminders: includeReminders,
+        );
       }),
     );
   }
@@ -680,6 +714,7 @@ class UpcomingExam {
     required this.deadline,
     required this.isExam,
     required this.warning,
+    this.isReminder = false,
     this.done = false,
   });
 
@@ -687,10 +722,24 @@ class UpcomingExam {
   final UtcDateTime deadline;
   final bool isExam, warning;
 
+  /// A note the user wrote themselves rather than something a teacher entered.
+  /// Kept apart from homework so it can be shown even when homework is not.
+  final bool isReminder;
+
   /// Ticked off on the dashboard. Such entries drop out of the cards.
   final bool done;
 
-  bool get isHomework => !isExam;
+  bool get isHomework => !isExam && !isReminder;
+
+  /// Whether this entry passes the three switches a card offers.
+  bool matches({
+    required bool includeExams,
+    required bool includeHomework,
+    required bool includeReminders,
+  }) {
+    if (isReminder) return includeReminders;
+    return isExam ? includeExams : includeHomework;
+  }
 
   /// What makes two entries the same thing, seen through two different
   /// endpoints. The time of day is left out on purpose: the dashboard dates an

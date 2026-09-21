@@ -45,11 +45,7 @@ class StatisticsViewModel {
         limitPercentage = state.settingsState.absenceWarningThreshold,
         holidays = state.settingsState.holidays.toList(),
         lastSchoolDay = state.settingsState.lastSchoolDay,
-        lessonTimes = LessonTimes.resolve(
-          configured: state.settingsState.lessonTimes,
-          calendar: state.calendarState,
-          preferServer: state.settingsState.lessonTimesFromServer,
-        ),
+        lessonTimes = LessonTimes.resolve(state.settingsState.lessonSchedule),
         loggedIn = state.loginState.loggedIn;
 
   final GradesState grades;

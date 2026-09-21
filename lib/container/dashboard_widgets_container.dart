@@ -26,6 +26,7 @@ library;
 import 'package:built_collection/built_collection.dart';
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
+import 'package:dr/container/sidebar_container.dart' show openCalendarOn;
 import 'package:dr/lesson_times.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart' as util;
@@ -67,11 +68,7 @@ class _WidgetBoardViewModel {
         lastSchoolDay: settings.lastSchoolDay,
         absenceLimitPercentage: settings.absenceWarningThreshold,
         weeklyLessons: settings.weeklyLessons,
-        lessonTimes: LessonTimes.resolve(
-          configured: settings.lessonTimes,
-          calendar: state.calendarState,
-          preferServer: settings.lessonTimesFromServer,
-        ),
+        lessonTimes: LessonTimes.resolve(settings.lessonSchedule),
       ),
       loggedIn: state.loginState.loggedIn,
       hasAbsences: state.absencesState.statistic != null,
@@ -207,11 +204,8 @@ class _WidgetBoardState extends State<_WidgetBoard> {
     }
   }
 
-  void _openCalendarAt(UtcDateTime date) {
-    widget.actions.routingActions.showCalendar();
-    widget.actions.calendarActions.setCurrentMonday(util.toMonday(date));
-    widget.actions.calendarActions.load(util.toMonday(date));
-  }
+  void _openCalendarAt(UtcDateTime date) =>
+      openCalendarOn(widget.actions, date);
 
   @override
   Widget build(BuildContext context) {
@@ -224,7 +218,7 @@ class _WidgetBoardState extends State<_WidgetBoard> {
           buildDashboardWidget(
             config: config,
             data: vm.data,
-            onOpenCalendar: () => _openCalendarAt(util.now),
+            onOpenCalendarAt: _openCalendarAt,
             onOpenAbsences: widget.actions.routingActions.showAbsences.call,
             onOpenGrades: widget.actions.routingActions.showGrades.call,
             onOpenMessages: widget.actions.routingActions.showMessages.call,

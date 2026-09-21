@@ -75,6 +75,7 @@ abstract class SettingsActions extends ReduxActions {
   abstract final ActionDispatcher<bool> setShowAbsenceBudget;
 
   /// The whole timetable at once; it is renumbered and sorted on the way in.
-  abstract final ActionDispatcher<BuiltList<LessonTime>> setLessonTimes;
-  abstract final ActionDispatcher<bool> setLessonTimesFromServer;
+  abstract final ActionDispatcher<BuiltList<LessonTime>> setLessonSchedule;
+
+  abstract final ActionDispatcher<bool> setPrefetchWholeCalendar;
 }

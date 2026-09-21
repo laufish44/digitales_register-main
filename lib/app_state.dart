@@ -381,14 +381,19 @@ abstract class SettingsState
   bool get showAbsenceBudget;
 
   /// When each lesson of the day starts and ends.
-  BuiltList<LessonTime> get lessonTimes;
-
-  /// Let the times the calendar reports override the table above.
   ///
-  /// Off by default. The register does send times per lesson, but they are not
-  /// necessarily the ones the school actually keeps — so the table is the
-  /// authority and the calendar only fills lessons the table does not mention.
-  bool get lessonTimesFromServer;
+  /// Deliberately not called `lessonTimes` any more: that field briefly held a
+  /// table mixed with the register's own (wrong) times, and a stored state
+  /// carrying those would otherwise survive the upgrade. Under a new name the
+  /// old value is simply not found and the defaults apply.
+  BuiltList<LessonTime> get lessonSchedule;
+
+  /// Fetch the whole school year's calendar after logging in.
+  ///
+  /// Costs one request per week, once per session, and is what makes the
+  /// search, the statistics and the absence subjects complete without the user
+  /// having to page through the calendar by hand.
+  bool get prefetchWholeCalendar;
 
   factory SettingsState([Function(SettingsStateBuilder b)? updates]) =
       _$SettingsState;
@@ -448,8 +453,8 @@ abstract class SettingsState
       ..showSchoolYearCountdown = true
       ..weeklyLessons = 0
       ..showAbsenceBudget = true
-      ..lessonTimes = ListBuilder(defaultLessonTimes)
-      ..lessonTimesFromServer = false;
+      ..lessonSchedule = ListBuilder(defaultLessonTimes)
+      ..prefetchWholeCalendar = true;
   }
 }
 
@@ -511,6 +516,7 @@ List<DashboardWidgetConfig> get defaultDashboardWidgets => [
           ..includeHomework = type.defaultIncludeHomework
           ..includeExams = type.defaultIncludeExams
           ..includeLessons = type.defaultIncludeLessons
+          ..includeReminders = type.defaultIncludeReminders
           ..maxEntries = type.defaultMaxEntries
           ..daysAhead = type.defaultDaysAhead
           ..compact = false),
@@ -552,10 +558,11 @@ abstract class DashboardWidgetConfig
 
   bool get enabled;
 
-  /// Homework, tests and lessons can each be left out.
+  /// Homework, tests, lessons and the user's own notes can each be left out.
   bool get includeHomework;
   bool get includeExams;
   bool get includeLessons;
+  bool get includeReminders;
 
   /// At most this many rows; 0 means no limit.
   int get maxEntries;
@@ -571,6 +578,7 @@ abstract class DashboardWidgetConfig
     ..includeHomework = true
     ..includeExams = true
     ..includeLessons = false
+    ..includeReminders = true
     ..maxEntries = 5
     ..daysAhead = 14
     ..compact = false;

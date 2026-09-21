@@ -17,6 +17,9 @@
 
 part of 'middleware.dart';
 
+// `schoolYearStart` and `now` come from school_year.dart / util.dart, both
+// already imported by middleware.dart.
+
 final _calendarMiddleware =
     MiddlewareBuilder<AppState, AppStateBuilder, AppActions>()
       ..add(CalendarActionsNames.load, _loadCalendar)
@@ -40,6 +43,57 @@ Future<void> _loadCalendar(
   if (data != null) {
     await api.actions.calendarActions.loaded(data as Map<String, dynamic>);
   }
+}
+
+/// Weeks already asked for in this session, so a second call is cheap.
+final _prefetchedWeeks = <UtcDateTime>{};
+
+@visibleForTesting
+void resetCalendarPrefetchState() => _prefetchedWeeks.clear();
+
+/// How long to wait between weeks.
+///
+/// Forty requests in a row would be rude to the school's server and would
+/// compete with whatever the user is actually looking at.
+const _prefetchPause = Duration(milliseconds: 250);
+
+/// Fetches the whole school year's calendar in the background.
+///
+/// Without this the calendar only ever holds the weeks the user paged through,
+/// which left the search, the statistics and "which subject did I miss" with
+/// gaps that were impossible to explain — the app would say "open the calendar
+/// first", which is not an answer.
+///
+/// Runs once per session, one week at a time, and gives up quietly on any
+/// failure: this is a convenience, and every page still loads its own week.
+Future<void> prefetchWholeCalendar(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api) async {
+  if (!api.state.settingsState.prefetchWholeCalendar) return;
+  if (api.state.noInternet || !api.state.loginState.loggedIn) return;
+
+  final settings = api.state.settingsState;
+  // From the start of the school year to its last day, so the statistics cover
+  // the whole year rather than just what is ahead.
+  final from = toMonday(UtcDateTime(schoolYearStart(now), 9, 1));
+  final until = settings.lastSchoolDay ?? now.add(const Duration(days: 120));
+
+  var monday = from;
+  var fetched = 0;
+  while (!monday.isAfter(until)) {
+    if (!api.state.loginState.loggedIn) return;
+    if (_prefetchedWeeks.add(monday)) {
+      try {
+        await api.actions.calendarActions.load(monday);
+        fetched++;
+      } catch (e) {
+        log("calendar prefetch failed for $monday", error: e);
+      }
+      if (api.state.noInternet) return;
+      await Future<void>.delayed(_prefetchPause);
+    }
+    monday = monday.add(const Duration(days: 7));
+  }
+  log("calendar prefetch done, $fetched weeks fetched");
 }
 
 Future<void> _selectionChanged(

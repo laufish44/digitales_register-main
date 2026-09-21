@@ -44,7 +44,6 @@ class AbsencesPage extends StatelessWidget {
   final UtcDateTime? lastSchoolDay;
   final CalendarState calendar;
   final List<LessonTime> lessonTimes;
-  final VoidCallback? onShowStatistics;
   final void Function(AddFutureAbsencePayload) onAddFutureAbsence;
   final void Function(FutureAbsence) onRemoveFutureAbsence;
   final void Function(JustifyAbsencePayload) onJustifyAbsence;
@@ -63,7 +62,6 @@ class AbsencesPage extends StatelessWidget {
     required this.lastSchoolDay,
     required this.calendar,
     required this.lessonTimes,
-    required this.onShowStatistics,
     required this.onAddFutureAbsence,
     required this.onRemoveFutureAbsence,
     required this.onJustifyAbsence,
@@ -72,17 +70,9 @@ class AbsencesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: ResponsiveAppBar(
-        title: const Text("Absenzen"),
-        actions: [
-          if (onShowStatistics != null)
-            IconButton(
-              icon: const Icon(Icons.insights),
-              tooltip: "Statistik",
-              onPressed: onShowStatistics,
-            ),
-        ],
-      ),
+      // The statistics used to hang off this app bar; they have their own
+      // entry in the sidebar now.
+      appBar: const ResponsiveAppBar(title: Text("Absenzen")),
       body: LastFetchedOverlay(
         lastFetched: state.lastFetched,
         noInternet: noInternet,

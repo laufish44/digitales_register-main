@@ -24,6 +24,7 @@ enum Pages {
   calendar,
   certificate,
   messages,
+  statistics,
   settings,
 }
 
@@ -49,6 +50,7 @@ final routingMiddleware =
       ..add(RoutingActionsNames.showGradeCalculator, _showGradeCalculator)
       ..add(RoutingActionsNames.showCertificate, _showCertificate)
       ..add(RoutingActionsNames.showMessages, _showMessages)
+      ..add(RoutingActionsNames.showStatistics, _showStatistics)
       ..add(RoutingActionsNames.showMessage, _showMessage);
 
 Future<void> _showLogin(
@@ -184,6 +186,19 @@ Future<void> _showMessages(
   scaffoldKey!.currentState!
       .selectContentWidget(MessagesPageContainer(), Pages.messages);
   await api.actions.messagesActions.load();
+  await next(action);
+}
+
+Future<void> _showStatistics(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+    ActionHandler next,
+    Action<void> action) async {
+  scaffoldKey!.currentState!
+      .selectContentWidget(const StatisticsPageContainer(), Pages.statistics);
+  // The page works out everything from grades, absences and the calendar, so
+  // make sure the first two are there; the calendar is prefetched on login.
+  await api.actions.gradesActions.load(api.state.gradesState.semester);
+  await api.actions.absencesActions.load();
   await next(action);
 }
 
