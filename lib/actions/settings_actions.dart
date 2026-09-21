@@ -59,7 +59,7 @@ abstract class SettingsActions extends ReduxActions {
   abstract final ActionDispatcher<bool> setMarkAbsencesInCalendar;
   abstract final ActionDispatcher<String> setThemePreset;
   abstract final ActionDispatcher<bool> setUpdateCheckEnabled;
-  abstract final ActionDispatcher<String> setUpdateReleaseUrl;
+  abstract final ActionDispatcher<String> setReleaseSource;
 
   /// The whole list at once, which is also how reordering is expressed.
   abstract final ActionDispatcher<BuiltList<DashboardWidgetConfig>>

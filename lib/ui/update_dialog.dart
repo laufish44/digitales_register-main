@@ -48,17 +48,18 @@ class _UpdateDialog extends StatefulWidget {
 class _UpdateDialogState extends State<_UpdateDialog> {
   bool downloading = false;
   double? progress;
-  String? error;
+  String? message;
+  bool messageIsError = false;
 
   Future<void> _install() async {
     final build = widget.info.build;
     if (build == null) return;
     setState(() {
       downloading = true;
-      error = null;
+      message = null;
       progress = null;
     });
-    final failure = await widget.service.download(
+    final result = await widget.service.download(
       build,
       onProgress: (value) {
         if (mounted) setState(() => progress = value);
@@ -67,11 +68,15 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     if (!mounted) return;
     setState(() {
       downloading = false;
-      error = failure;
+      message = result.message;
+      messageIsError = !result.success;
     });
-    // On Windows the app exits from inside download(); anywhere else the
-    // installer has taken over and the dialog can go away.
-    if (failure == null && mounted) Navigator.pop(context);
+    // On Windows the app exits from inside download(). Elsewhere the installer
+    // has taken over; the dialog only stays open when there is something left
+    // to say — on Android, what to do if no install prompt appeared.
+    if (result.success && result.message == null && mounted) {
+      Navigator.pop(context);
+    }
   }
 
   @override
@@ -106,12 +111,14 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                   : "${(progress! * 100).round()} %",
             ),
           ],
-          if (error != null)
+          if (message != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Text(
-                error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                message!,
+                style: messageIsError
+                    ? TextStyle(color: Theme.of(context).colorScheme.error)
+                    : null,
               ),
             ),
         ],
@@ -119,12 +126,19 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       actions: [
         TextButton(
           onPressed: downloading ? null : () => Navigator.pop(context),
-          child: const Text("Später"),
+          // Once the file is handed over there is nothing left to wait for.
+          child: Text(
+            message != null && !messageIsError ? "Schließen" : "Später",
+          ),
         ),
         if (build != null)
           ElevatedButton(
             onPressed: downloading ? null : _install,
-            child: const Text("Aktualisieren"),
+            child: Text(
+              message != null && !messageIsError
+                  ? "Erneut versuchen"
+                  : "Aktualisieren",
+            ),
           ),
       ],
     );

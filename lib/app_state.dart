@@ -354,7 +354,13 @@ abstract class SettingsState
   /// Where the releases live. Either a GitHub repository
   /// (`https://github.com/user/repo`, its releases are read through the GitHub
   /// API) or a plain address serving a `latest.json`.
-  String get updateReleaseUrl;
+  ///
+  /// Deliberately not called `updateReleaseUrl` any more. That field held the
+  /// address of the retired push backend, and a stored settings state kept
+  /// pointing an upgraded installation at a server that no longer exists — the
+  /// update check then ran into a timeout on every start. Under a new name the
+  /// old value is not found and the default below applies.
+  String get releaseSource;
 
   /// The cards on the dashboard, in the order they are shown.
   BuiltList<DashboardWidgetConfig> get dashboardWidgets;
@@ -446,7 +452,7 @@ abstract class SettingsState
       ..markAbsencesInCalendar = true
       ..themePreset = defaultThemePresetId
       ..updateCheckEnabled = true
-      ..updateReleaseUrl = defaultUpdateReleaseUrl
+      ..releaseSource = defaultUpdateReleaseUrl
       ..dashboardWidgets = ListBuilder(defaultDashboardWidgets)
       ..gradeTargets = MapBuilder<String, int>()
       ..holidays = ListBuilder(defaultHolidays)

@@ -80,8 +80,8 @@ final settingsReducerBuilder = NestedReducerBuilder<AppState, AppStateBuilder,
       (s, a, b) => b.themePreset = themePresetById(a.payload).id)
   ..add(SettingsActionsNames.setUpdateCheckEnabled,
       (s, a, b) => b.updateCheckEnabled = a.payload)
-  ..add(SettingsActionsNames.setUpdateReleaseUrl,
-      (s, a, b) => b.updateReleaseUrl = normalizeBackendUrl(a.payload))
+  ..add(SettingsActionsNames.setReleaseSource,
+      (s, a, b) => b.releaseSource = normalizeBackendUrl(a.payload))
   ..add(SettingsActionsNames.setDashboardWidgets, _setDashboardWidgets)
   ..add(SettingsActionsNames.setGradeTarget, _setGradeTarget)
   ..add(SettingsActionsNames.setHolidays,

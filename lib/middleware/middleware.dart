@@ -401,15 +401,21 @@ Future<void> _checkForUpdate(
     MiddlewareApi<AppState, AppStateBuilder, AppActions> api) async {
   if (_updateChecked) return;
   final settings = api.state.settingsState;
-  if (!settings.updateCheckEnabled || settings.updateReleaseUrl.isEmpty) return;
+  if (!settings.updateCheckEnabled || settings.releaseSource.isEmpty) return;
   _updateChecked = true;
 
-  final info =
-      await const UpdateService().check(baseUrl: settings.updateReleaseUrl);
-  if (info == null) return;
+  final result =
+      await const UpdateService().check(baseUrl: settings.releaseSource);
+  // A failure is only logged here; the check on startup must not interrupt.
+  // The button in the settings does say what went wrong.
+  if (result.failedToCheck) {
+    log("update check on startup: ${result.error}");
+    return;
+  }
+  if (!result.hasUpdate) return;
   final context = navigatorKey?.currentContext;
   if (context == null || !context.mounted) return;
-  await showUpdateDialog(context, info);
+  await showUpdateDialog(context, result.update!);
 }
 
 var _saveUnderway = false;

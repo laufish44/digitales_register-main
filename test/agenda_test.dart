@@ -676,6 +676,36 @@ void main() {
       expect(UpdateService.gitHubApiUri(api).toString(), api);
     });
 
+    // A failed request used to come back as null, which the settings page
+    // reported as "you already have the latest version". That is how a release
+    // address pointing at a server that no longer exists stayed hidden for a
+    // whole version: the check timed out and the app said everything was fine.
+    test("an unreachable source is a failure, not 'up to date'", () async {
+      final result = await const UpdateService().check(
+        // Reserved for documentation, so nothing answers.
+        baseUrl: "https://example.invalid/releases",
+        currentVersion: "8.0.0",
+      );
+      expect(result.failedToCheck, isTrue);
+      expect(result.hasUpdate, isFalse);
+      expect(result.error, isNotNull);
+    });
+
+    test("an empty source says so instead of staying silent", () async {
+      final result = await const UpdateService()
+          .check(baseUrl: "", currentVersion: "8.0.0");
+      expect(result.failedToCheck, isTrue);
+      expect(result.error, contains("keine Quelle"));
+    });
+
+    test("an unparseable running version is a failure too", () async {
+      final result = await const UpdateService().check(
+        baseUrl: "https://github.com/user/repo",
+        currentVersion: "Unknown",
+      );
+      expect(result.failedToCheck, isTrue);
+    });
+
     test("is not fooled by something that is not GitHub", () {
       expect(UpdateService.gitHubApiUri("https://example.org/releases"), isNull);
       expect(UpdateService.gitHubApiUri(""), isNull);

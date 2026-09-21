@@ -48,6 +48,7 @@
 ///  * everything else: open the download page in the browser.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
@@ -127,6 +128,41 @@ class UpdateInfo {
   final UpdateBuild? build;
 }
 
+/// What came back from a check.
+///
+/// "Nothing newer" and "could not ask" have to be told apart: reporting a
+/// failed request as "you already have the latest version" is a lie, and it is
+/// exactly what hid a dead release address for a whole version.
+class UpdateCheckResult {
+  const UpdateCheckResult.upToDate()
+      : update = null,
+        error = null;
+  const UpdateCheckResult.available(UpdateInfo this.update) : error = null;
+  const UpdateCheckResult.failed(String this.error) : update = null;
+
+  /// The newer version, if there is one.
+  final UpdateInfo? update;
+
+  /// Why the check could not be made, in German, for the user.
+  final String? error;
+
+  bool get hasUpdate => update != null;
+  bool get failedToCheck => error != null;
+}
+
+/// What happened when an update was downloaded and handed to the system.
+class UpdateDownloadResult {
+  const UpdateDownloadResult.handedOver([this.message])
+      : success = true;
+  const UpdateDownloadResult.failed(String this.message) : success = false;
+
+  final bool success;
+
+  /// Something to tell the user. On a failure this is what went wrong; on
+  /// success it can be a note about what happens next.
+  final String? message;
+}
+
 class UpdateService {
   const UpdateService();
 
@@ -154,15 +190,21 @@ class UpdateService {
   /// [baseUrl] may be a GitHub repository, a JSON document, or a directory in
   /// which case `latest.json` is appended. Returns null when nothing newer than
   /// [currentVersion] is offered, or when the server cannot be reached.
-  Future<UpdateInfo?> check({
+  Future<UpdateCheckResult> check({
     required String baseUrl,
     String? currentVersion,
   }) async {
-    if (baseUrl.trim().isEmpty) return null;
+    if (baseUrl.trim().isEmpty) {
+      return const UpdateCheckResult.failed(
+        "Es ist keine Quelle für Releases eingetragen.",
+      );
+    }
     final current = AppVersion.tryParse(currentVersion ?? appVersion);
     if (current == null) {
       log("cannot parse the running version, skipping the update check");
-      return null;
+      return const UpdateCheckResult.failed(
+        "Die installierte Version lässt sich nicht bestimmen.",
+      );
     }
 
     final github = gitHubApiUri(baseUrl);
@@ -178,20 +220,35 @@ class UpdateService {
       ).timeout(const Duration(seconds: 20));
       if (response.statusCode != 200) {
         log("update check: server answered ${response.statusCode} for $uri");
-        return null;
+        return UpdateCheckResult.failed(
+          "Die Quelle antwortet mit Fehler ${response.statusCode}.",
+        );
       }
       final decoded = json.decode(utf8.decode(response.bodyBytes));
       final manifest = getMap(decoded);
-      if (manifest == null) return null;
+      if (manifest == null) {
+        return const UpdateCheckResult.failed(
+          "Die Antwort der Quelle war nicht lesbar.",
+        );
+      }
 
       final info = github == null
           ? _parseManifest(manifest)
           : _parseGitHubRelease(manifest);
-      if (info == null || !info.version.isNewerThan(current)) return null;
-      return info;
+      if (info == null || !info.version.isNewerThan(current)) {
+        return const UpdateCheckResult.upToDate();
+      }
+      return UpdateCheckResult.available(info);
+    } on TimeoutException {
+      log("update check timed out for $uri");
+      return const UpdateCheckResult.failed(
+        "Die Quelle für Releases antwortet nicht.",
+      );
     } catch (e) {
       log("update check failed", error: e);
-      return null;
+      return const UpdateCheckResult.failed(
+        "Die Quelle für Releases ist nicht erreichbar.",
+      );
     }
   }
 
@@ -308,9 +365,8 @@ class UpdateService {
   /// Downloads [build] and hands it to the system.
   ///
   /// [onProgress] receives a value between 0 and 1 while downloading, or null
-  /// when the server does not report a length. Returns null on success or a
-  /// message to show the user.
-  Future<String?> download(
+  /// when the server does not report a length.
+  Future<UpdateDownloadResult> download(
     UpdateBuild build, {
     void Function(double? progress)? onProgress,
   }) async {
@@ -319,7 +375,9 @@ class UpdateService {
       file = await _downloadTo(build, onProgress);
     } catch (e) {
       log("update download failed", error: e);
-      return "Der Download ist fehlgeschlagen.";
+      return const UpdateDownloadResult.failed(
+        "Der Download ist fehlgeschlagen.",
+      );
     }
 
     if (build.sha256Hash != null) {
@@ -327,12 +385,16 @@ class UpdateService {
       if (actual.toLowerCase() != build.sha256Hash!.toLowerCase()) {
         await file.delete();
         log("update rejected: sha256 mismatch");
-        return "Die heruntergeladene Datei ist beschädigt und wurde verworfen.";
+        return const UpdateDownloadResult.failed(
+          "Die heruntergeladene Datei ist beschädigt und wurde verworfen.",
+        );
       }
     }
 
     final result = await openFileWithDefaultApp(file.path);
-    if (!result.success) return result.errorMessage;
+    if (!result.success) {
+      return UpdateDownloadResult.failed(result.errorMessage!);
+    }
 
     if (Platform.isWindows) {
       // The installer cannot replace files that are still in use, so step out
@@ -340,8 +402,24 @@ class UpdateService {
       await Future<void>.delayed(const Duration(seconds: 2));
       exit(0);
     }
-    return null;
+    if (Platform.isAndroid) {
+      // Handing the APK over looks like success even when Android refuses to
+      // show the installer, because the intent is accepted either way. Say what
+      // should happen next instead of closing the dialog on a promise.
+      return const UpdateDownloadResult.handedOver(androidHandOverNote);
+    }
+    return const UpdateDownloadResult.handedOver();
   }
+
+  /// Shown on Android after the APK was handed to the system.
+  ///
+  /// Not an error — there is no way to observe whether the installer actually
+  /// appeared, so the dialog stays open with an explanation instead.
+  static const androidHandOverNote =
+      "Die Installation wurde an Android übergeben.\n\n"
+      "Kommt keine Abfrage, erlaubt das Gerät Installationen aus dieser App "
+      "noch nicht: Einstellungen → Apps → Spezieller App-Zugriff → "
+      "Unbekannte Apps installieren → Digitales Register → erlauben.";
 
   Future<File> _downloadTo(
     UpdateBuild build,

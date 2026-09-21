@@ -95,8 +95,8 @@ class SettingsPageContainer extends StatelessWidget {
           onSetThemePreset: actions.settingsActions.setThemePreset.call,
           onSetUpdateCheckEnabled:
               actions.settingsActions.setUpdateCheckEnabled.call,
-          onSetUpdateReleaseUrl:
-              actions.settingsActions.setUpdateReleaseUrl.call,
+          onSetReleaseSource:
+              actions.settingsActions.setReleaseSource.call,
           onSetDashboardWidgets: (list) =>
               actions.settingsActions.setDashboardWidgets(BuiltList(list)),
           onSetHolidays: (list) =>
@@ -151,7 +151,7 @@ class SettingsViewModel {
   final bool markAbsencesInCalendar;
   final String themePreset;
   final bool updateCheckEnabled;
-  final String updateReleaseUrl;
+  final String releaseSource;
   final List<DashboardWidgetConfig> dashboardWidgets;
   final List<HolidayPeriod> holidays;
   final UtcDateTime? lastSchoolDay;
@@ -199,7 +199,7 @@ class SettingsViewModel {
         markAbsencesInCalendar = state.settingsState.markAbsencesInCalendar,
         themePreset = state.settingsState.themePreset,
         updateCheckEnabled = state.settingsState.updateCheckEnabled,
-        updateReleaseUrl = state.settingsState.updateReleaseUrl,
+        releaseSource = state.settingsState.releaseSource,
         // Reconciled on the way out so a card added by a newer version of the
         // app shows up even when the stored list predates it.
         dashboardWidgets =

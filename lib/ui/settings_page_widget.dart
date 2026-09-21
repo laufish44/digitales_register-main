@@ -693,7 +693,7 @@ class SettingsPageWidget extends StatefulWidget {
   final OnSettingChanged<bool> onSetMarkAbsencesInCalendar;
   final OnSettingChanged<String> onSetThemePreset;
   final OnSettingChanged<bool> onSetUpdateCheckEnabled;
-  final OnSettingChanged<String> onSetUpdateReleaseUrl;
+  final OnSettingChanged<String> onSetReleaseSource;
   final OnSettingChanged<List<DashboardWidgetConfig>> onSetDashboardWidgets;
   final OnSettingChanged<List<HolidayPeriod>> onSetHolidays;
   final OnSettingChanged<UtcDateTime?> onSetLastSchoolDay;
@@ -739,7 +739,7 @@ class SettingsPageWidget extends StatefulWidget {
     required this.onSetMarkAbsencesInCalendar,
     required this.onSetThemePreset,
     required this.onSetUpdateCheckEnabled,
-    required this.onSetUpdateReleaseUrl,
+    required this.onSetReleaseSource,
     required this.onSetDashboardWidgets,
     required this.onSetHolidays,
     required this.onSetLastSchoolDay,
@@ -794,16 +794,27 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
     messenger.showSnackBar(
       const SnackBar(content: Text("Suche nach Updates …")),
     );
-    final info = await const UpdateService()
-        .check(baseUrl: widget.vm.updateReleaseUrl);
+    final result =
+        await const UpdateService().check(baseUrl: widget.vm.releaseSource);
     if (!context.mounted) return;
-    if (info == null) {
+    // A failed request used to be reported as "you have the latest version",
+    // which is how a dead release address stayed hidden.
+    if (result.failedToCheck) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(result.error!),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+      return;
+    }
+    if (!result.hasUpdate) {
       messenger.showSnackBar(
         const SnackBar(content: Text("Du hast bereits die neueste Version.")),
       );
       return;
     }
-    await showUpdateDialog(context, info);
+    await showUpdateDialog(context, result.update!);
   }
 
   void _selectTheme(_Theme? theme) {
@@ -1475,12 +1486,12 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
             enabled: widget.vm.updateCheckEnabled,
             title: const Text("Quelle der Releases"),
             subtitle: Text(
-              widget.vm.updateReleaseUrl.isEmpty
+              widget.vm.releaseSource.isEmpty
                   ? "Nicht eingerichtet"
-                  : UpdateService.gitHubApiUri(widget.vm.updateReleaseUrl) !=
+                  : UpdateService.gitHubApiUri(widget.vm.releaseSource) !=
                           null
-                      ? "${widget.vm.updateReleaseUrl} (GitHub-Releases)"
-                      : widget.vm.updateReleaseUrl,
+                      ? "${widget.vm.releaseSource} (GitHub-Releases)"
+                      : widget.vm.releaseSource,
             ),
             trailing: const Icon(Icons.edit),
             onTap: widget.vm.updateCheckEnabled
@@ -1493,19 +1504,19 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
                           "Release gelesen und die passende Datei (.exe unter "
                           "Windows, .apk unter Android) heruntergeladen. "
                           "Jede andere Adresse wird als latest.json gelesen.",
-                      initialValue: widget.vm.updateReleaseUrl,
+                      initialValue: widget.vm.releaseSource,
                       keyboardType: TextInputType.url,
                     );
-                    if (value != null) widget.onSetUpdateReleaseUrl(value);
+                    if (value != null) widget.onSetReleaseSource(value);
                   }
                 : null,
           ),
           ListTile(
-            enabled: widget.vm.updateReleaseUrl.isNotEmpty,
+            enabled: widget.vm.releaseSource.isNotEmpty,
             leading: const Icon(Icons.system_update),
             title: const Text("Jetzt nach Updates suchen"),
             subtitle: Text("Installiert: $appVersion"),
-            onTap: widget.vm.updateReleaseUrl.isEmpty
+            onTap: widget.vm.releaseSource.isEmpty
                 ? null
                 : () => _checkForUpdates(context),
           ),
