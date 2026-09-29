@@ -17,6 +17,7 @@
 
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
+import 'package:dr/lesson_times.dart';
 import 'package:dr/stats.dart';
 import 'package:dr/ui/animated_linear_progress_indicator.dart';
 import 'package:dr/ui/attachment_actions.dart';
@@ -72,6 +73,8 @@ class CalendarCard extends StatelessWidget {
   final SubjectTheme theme;
   final bool selected;
   final SubmissionCallback onOpenFile;
+  /// When the lessons run, from the settings.
+  final List<LessonTime> lessonTimes;
   final SubmissionCallback? onSaveFileAs;
   final SubmissionCallback? onCopyFile;
   final bool noInternet;
@@ -86,6 +89,7 @@ class CalendarCard extends StatelessWidget {
     required this.selected,
     required this.onOpenFile,
     required this.noInternet,
+    this.lessonTimes = const [],
     this.onSaveFileAs,
     this.onCopyFile,
     this.absenceMark = AbsenceMark.none,
@@ -93,6 +97,21 @@ class CalendarCard extends StatelessWidget {
 
   String formatTime(UtcDateTime dateTime) {
     return DateFormat.Hm("de").format(dateTime);
+  }
+
+  /// The block's span according to the configured timetable.
+  ///
+  /// Falls back to what the register sent when a lesson is not in the table at
+  /// all — better a time that is slightly off than none.
+  String _lessonTimeLabel() {
+    final start = LessonTimes.forHour(lessonTimes, hour.fromHour);
+    final end = LessonTimes.forHour(lessonTimes, hour.toHour);
+    if (start != null && end != null) {
+      return "${start.startLabel} – ${end.endLabel}";
+    }
+    return hour.timeSpans
+        .map((span) => "${formatTime(span.from)} – ${formatTime(span.to)}")
+        .join(", ");
   }
 
   @override
@@ -157,15 +176,15 @@ class CalendarCard extends StatelessWidget {
                   ],
                 ),
               ),
-            // Time (index and time)
+            // Time (index and time). The times come from the timetable in the
+            // settings, not from `hour.timeSpans` — the register reports times
+            // of its own that run a quarter of an hour early, and the calendar
+            // must not be the one place that still shows them.
             _ContentItem(
               title: hour.fromHour == hour.toHour
                   ? "${hour.fromHour}. Stunde"
                   : "${hour.fromHour}. – ${hour.toHour}. Stunde",
-              content: hour.timeSpans
-                  .map((span) =>
-                      "${formatTime(span.from)} – ${formatTime(span.to)}")
-                  .join(", "),
+              content: _lessonTimeLabel(),
               icon: Icons.schedule,
             ),
 

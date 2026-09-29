@@ -158,12 +158,17 @@ class _BarRow extends StatelessWidget {
     required this.count,
     required this.total,
     this.highlight = false,
+    this.valueOverride,
   });
 
   final String label;
   final int count;
   final int total;
   final bool highlight;
+
+  /// Shown instead of "count · share", when the share of the bar and the
+  /// number worth reading are not the same thing.
+  final String? valueOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -180,7 +185,8 @@ class _BarRow extends StatelessWidget {
             children: [
               Expanded(child: Text(label)),
               Text(
-                "$count · ${gradeAverageFormat.format(share)} %",
+                valueOverride ??
+                    "$count · ${gradeAverageFormat.format(share)} %",
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: highlight ? FontWeight.bold : null,
                   color: highlight ? color : null,
@@ -202,6 +208,65 @@ class _BarRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The one number of a section worth reading from across the room.
+class _BigNumber extends StatelessWidget {
+  const _BigNumber({
+    required this.value,
+    required this.unit,
+    required this.label,
+    this.highlight = false,
+  });
+
+  final String value, unit, label;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = highlight ? theme.colorScheme.error : null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            style: theme.textTheme.displaySmall
+                ?.copyWith(fontWeight: FontWeight.bold, color: color),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(unit,
+                    style: theme.textTheme.titleMedium?.copyWith(color: color)),
+                Text(label, style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Mo, 14.09.2026"
+String _formatDayLong(UtcDateTime date) {
+  const short = {
+    DateTime.monday: "Mo",
+    DateTime.tuesday: "Di",
+    DateTime.wednesday: "Mi",
+    DateTime.thursday: "Do",
+    DateTime.friday: "Fr",
+    DateTime.saturday: "Sa",
+    DateTime.sunday: "So",
+  };
+  final day = date.day.toString().padLeft(2, "0");
+  final month = date.month.toString().padLeft(2, "0");
+  return "${short[date.weekday]}, $day.$month.${date.year}";
 }
 
 class _Row extends StatelessWidget {
@@ -356,10 +421,25 @@ class _AbsenceStatistics extends StatelessWidget {
 
     final missed = AbsenceStats.missedLessons(groups);
     final percentage = AbsenceStats.missedPercentage(statistic);
+    // Counted from the calendar rather than worked back out of the register's
+    // percentage, which is what makes "until the end of the year" possible.
+    final year = AbsenceStats.yearBudget(
+      absences: groups,
+      calendar: calendar,
+      now: now,
+      limitPercentage: limitPercentage.toDouble(),
+    );
     final budget = AbsenceStats.budget(
       statistic: statistic,
       absences: groups,
       limitPercentage: limitPercentage.toDouble(),
+    );
+    final lateDays = AbsenceStats.lateArrivalsByDay(groups);
+    final earlyLeaves = AbsenceStats.earlyLeaves(groups);
+    final subjectLoad = AbsenceStats.subjectLoad(
+      absences: groups,
+      calendar: calendar,
+      now: now,
     );
 
     final byWeekday = AbsenceStats.missedByWeekday(groups);
@@ -376,16 +456,31 @@ class _AbsenceStatistics extends StatelessWidget {
 
     final worstLesson = _largestKey(byLesson);
     final worstWeekday = _largestKey(byWeekday);
-    final lessonsPerDay = _averageLessonsPerDay(calendar);
 
     return _Section(
       title: "Absenzen",
       children: [
         _Row(label: "Versäumte Stunden", value: "${missed.round()}"),
-        if (percentage != null)
+        // Two percentages, because one number cannot mean both things: missing
+        // the first day of the year is 100 % of what has happened so far and
+        // almost nothing of the year.
+        if (year != null) ...[
+          _Row(
+            label: "Anteil bisher",
+            value: "${gradeAverageFormat.format(year.percentageSoFar)} %",
+            hint: "von den ${year.census.elapsed} Stunden, die bisher "
+                "stattgefunden haben",
+          ),
+          _Row(
+            label: "Anteil am Schuljahr",
+            value: "${gradeAverageFormat.format(year.percentageOfYear)} %",
+            hint: "von allen ${year.census.total} Stunden des Schuljahres",
+          ),
+        ] else if (percentage != null)
           _Row(
             label: "Anteil",
             value: "${gradeAverageFormat.format(percentage)} %",
+            hint: "laut Register",
           ),
         if (statistic.counter != null)
           _Row(label: "Absenzen", value: "${statistic.counter}"),
@@ -400,13 +495,52 @@ class _AbsenceStatistics extends StatelessWidget {
             label: "Im Auftrag der Schule",
             value: "${statistic.counterForSchool}",
           ),
-        if (budget != null) ...[
+        if (year != null) ...[
           const Divider(),
-          const _SubHeading("Budget"),
+          _SubHeading(
+            "Wie viel noch geht",
+            hint: "Bis zum Ende des Schuljahres, gerechnet auf alle "
+                "${year.census.total} Stunden",
+          ),
+          _BigNumber(
+            value: year.exceeded
+                ? "${(-year.remainingLessons).ceil()}"
+                : "${year.remainingLessons.floor()}",
+            unit: "Stunden",
+            label: year.exceeded
+                ? "über der Grenze von $limitPercentage %"
+                : "kannst du noch fehlen",
+            highlight: year.exceeded,
+          ),
+          if (!year.exceeded) ...[
+            _Row(
+              label: "Das sind",
+              value: "${year.remainingDays.floor()} ganze Schultage",
+              hint: "bei rund "
+                  "${gradeAverageFormat.format(year.census.lessonsPerDay)} "
+                  "Stunden am Tag",
+            ),
+            _Row(
+              label: "Oder",
+              value: "${year.remainingWeeks.floor()} ganze Schulwochen",
+            ),
+          ],
           _Row(
-            label: "Stunden im Schuljahr",
-            value: "rund ${budget.estimatedTotalLessons.round()}",
-            hint: "Aus dem Prozentsatz zurückgerechnet",
+            label: "Erlaubt im ganzen Jahr",
+            value: "${year.allowedLessons.floor()} Stunden",
+            hint: "Grenze: $limitPercentage % von ${year.census.total}",
+          ),
+          _Row(
+            label: "Stunden bisher / im Jahr",
+            value: "${year.census.elapsed} / ${year.census.total}",
+            hint: "aus dem Stundenplan gezählt, nicht geschätzt",
+          ),
+        ] else if (budget != null) ...[
+          const Divider(),
+          const _SubHeading(
+            "Wie viel noch geht",
+            hint: "Der Kalender ist noch nicht geladen — geschätzt aus dem "
+                "Prozentsatz des Registers",
           ),
           _Row(
             label: budget.exceeded ? "Über der Grenze" : "Noch möglich",
@@ -415,19 +549,38 @@ class _AbsenceStatistics extends StatelessWidget {
                 : "${budget.remainingLessons.floor()} Stunden",
             hint: "Grenze: $limitPercentage %",
           ),
-          if (!budget.exceeded && lessonsPerDay > 0)
+        ],
+        if (lateDays.isNotEmpty) ...[
+          const Divider(),
+          _SubHeading(
+            "Verspätungen",
+            hint: "${lateDays.length} Tage, zusammen "
+                "${lateDays.fold<int>(0, (s, d) => s + d.minutes)} Minuten",
+          ),
+          for (final day in lateDays.take(12))
             _Row(
-              label: "Das sind",
-              value:
-                  "${budget.perDay(lessonsPerDay).floor()} ganze Schultage",
-              hint: "bei ${gradeAverageFormat.format(lessonsPerDay)} "
-                  "Stunden am Tag",
+              label: _formatDayLong(day.date),
+              value: "${day.minutes} min",
+              hint: day.lessons == 1 ? null : "${day.lessons} Stunden betroffen",
             ),
-          if (!budget.exceeded && lessonsPerDay > 0)
+          if (lateDays.length > 12)
             _Row(
-              label: "Oder",
-              value: "${(budget.remainingLessons / (lessonsPerDay * 5))
-                  .floor()} ganze Schulwochen",
+              label: "…",
+              value: "${lateDays.length - 12} weitere Tage",
+            ),
+        ],
+        if (earlyLeaves.isNotEmpty) ...[
+          const Divider(),
+          _SubHeading(
+            "Früher gegangen",
+            hint: "${earlyLeaves.length} Mal, zusammen "
+                "${earlyLeaves.fold<int>(0, (s, e) => s + e.minutes)} Minuten",
+          ),
+          for (final leave in earlyLeaves.take(8))
+            _Row(
+              label: _formatDayLong(leave.date),
+              value: "${leave.minutes} min",
+              hint: LessonTimes.label(lessonTimes, leave.hour),
             ),
         ],
         if (byLesson.isNotEmpty) ...[
@@ -465,15 +618,29 @@ class _AbsenceStatistics extends StatelessWidget {
               highlight: entry.key == worstWeekday,
             ),
         ],
-        if (bySubject.bySubject.isNotEmpty) ...[
+        if (subjectLoad.isNotEmpty) ...[
           const Divider(),
           _SubHeading(
-            "Nach Fach",
-            hint: bySubject.unmatched > 0
-                ? "${bySubject.unmatched} Stunden lassen sich nicht zuordnen – "
-                    "der Kalender ist nur für die geladenen Wochen bekannt"
-                : null,
+            "Nach Fach, gewichtet",
+            hint: "Gemessen in Wochen des jeweiligen Faches: eine versäumte "
+                "Italienischstunde bei einer Wochenstunde wiegt so schwer wie "
+                "zehn versäumte BWL-Stunden bei zehn Wochenstunden."
+                "${bySubject.unmatched > 0 ? " ${bySubject.unmatched} Stunden "
+                    "lassen sich keinem Fach zuordnen." : ""}",
           ),
+          for (final load in subjectLoad)
+            _BarRow(
+              label: load.subject,
+              // The bar is the share of that subject's own lessons, which is
+              // the comparable figure; the count stays the raw hours.
+              count: load.missedLessons,
+              total: load.totalLessons,
+              valueOverride: "${load.missedLessons} h · "
+                  "${gradeAverageFormat.format(load.weeksMissed)} Wochen",
+              highlight: load == subjectLoad.first && subjectLoad.length > 1,
+            ),
+          const Divider(height: 8),
+          const _SubHeading("Nach Fach, roh"),
           for (final entry in (bySubject.bySubject.entries.toList()
             ..sort((a, b) => b.value.compareTo(a.value))))
             _BarRow(
@@ -485,8 +652,7 @@ class _AbsenceStatistics extends StatelessWidget {
           const Divider(),
           const _SubHeading(
             "Nach Fach",
-            hint: "Dafür muss der Kalender geladen sein – einmal öffnen "
-                "genügt, dann zählt die Woche hier mit",
+            hint: "Noch keine Absenzen, die sich einem Fach zuordnen lassen",
           ),
         ],
         if (byMonth.length > 1) ...[
@@ -503,25 +669,6 @@ class _AbsenceStatistics extends StatelessWidget {
       ],
     );
   }
-}
-
-/// How many lessons an average school day has, from the calendar.
-///
-/// Days without lessons are left out, so holidays and weekends do not drag the
-/// figure down. Zero when the calendar is empty — the rows that use it are then
-/// simply not shown rather than dividing by nothing.
-double _averageLessonsPerDay(CalendarState calendar) {
-  var days = 0, lessons = 0;
-  for (final day in calendar.days.values) {
-    var count = 0;
-    for (final hour in day.hours) {
-      count += hour.length;
-    }
-    if (count == 0) continue;
-    days++;
-    lessons += count;
-  }
-  return days == 0 ? 0 : lessons / days;
 }
 
 class _EntryStatistics extends StatelessWidget {

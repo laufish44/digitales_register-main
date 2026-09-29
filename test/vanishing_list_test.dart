@@ -106,6 +106,63 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  /// The order the rows are actually laid out in.
+  List<String> shownOrder(WidgetTester tester) => tester
+      .widgetList<Text>(find.descendant(
+        of: find.byType(VanishingList),
+        matching: find.byType(Text),
+      ))
+      .map((t) => t.data!)
+      .toList();
+
+  // Ticking a homework off removes it; un-ticking it puts it back. It has to
+  // land at its date again, not at the bottom of the card.
+  testWidgets("a row that comes back lands where the new list puts it",
+      (tester) async {
+    await tester.pumpWidget(_wrap(["a", "b", "c"]));
+    await tester.pumpWidget(_wrap(["a", "c"]));
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(_duration);
+    await tester.pump(_duration);
+    expect(shownOrder(tester), ["a", "c"]);
+
+    await tester.pumpWidget(_wrap(["a", "b", "c"]));
+    await tester.pump();
+    expect(shownOrder(tester), ["a", "b", "c"]);
+  });
+
+  testWidgets("a row that returns mid-animation survives", (tester) async {
+    await tester.pumpWidget(_wrap(["a", "b", "c"]));
+    await tester.pumpWidget(_wrap(["a", "c"]));
+    await tester.pump(const Duration(milliseconds: 16));
+    // Back before the collapse has finished.
+    await tester.pumpWidget(_wrap(["a", "b", "c"]));
+    await tester.pump(_duration);
+    await tester.pump(_duration);
+    expect(shownOrder(tester), ["a", "b", "c"]);
+  });
+
+  testWidgets("the incoming order wins over the previous one", (tester) async {
+    await tester.pumpWidget(_wrap(["a", "b", "c"]));
+    await tester.pumpWidget(_wrap(["c", "b", "a"]));
+    await tester.pump();
+    expect(shownOrder(tester), ["c", "b", "a"]);
+  });
+
+  testWidgets("a departing row keeps its place while it animates",
+      (tester) async {
+    await tester.pumpWidget(_wrap(["a", "b", "c"]));
+    await tester.pumpWidget(_wrap(["a", "c"]));
+    await tester.pump(const Duration(milliseconds: 16));
+    // b is still on screen, still between a and c.
+    expect(shownOrder(tester), ["a", "b", "c"]);
+
+    // Let the removal finish, otherwise its timer outlives the test.
+    await tester.pump(_duration);
+    await tester.pump(_duration);
+    expect(shownOrder(tester), ["a", "c"]);
+  });
+
   testWidgets("a row removed twice in a row does not get stuck",
       (tester) async {
     await tester.pumpWidget(_wrap(["a", "b", "c"]));

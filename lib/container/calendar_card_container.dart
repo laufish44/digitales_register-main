@@ -17,6 +17,7 @@
 
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
+import 'package:dr/lesson_times.dart';
 import 'package:dr/data.dart';
 import 'package:dr/stats.dart';
 import 'package:dr/ui/calendar_card.dart';
@@ -42,6 +43,7 @@ class CalendarCardContainer extends StatelessWidget {
           hour: state.hour,
           theme: state.theme,
           selected: state.selected,
+          lessonTimes: state.lessonTimes,
           onOpenFile: actions.calendarActions.onOpenFile.call,
           onSaveFileAs: actions.calendarActions.onSaveFileAs.call,
           onCopyFile: actions.calendarActions.onCopyFile.call,
@@ -57,6 +59,8 @@ class CalendarCardContainer extends StatelessWidget {
           selected: state.calendarState.selection?.date == day &&
               state.calendarState.selection?.hour == hour.fromHour,
           noInternet: state.noInternet,
+          lessonTimes:
+              LessonTimes.resolve(state.settingsState.lessonSchedule),
           absenceMark: state.settingsState.markAbsencesInCalendar
               ? AbsenceMarks.forRange(
                   date: day,
@@ -78,6 +82,7 @@ class CalendarCardViewModel {
   final bool selected;
   final bool noInternet;
   final AbsenceMark absenceMark;
+  final List<LessonTime> lessonTimes;
 
   CalendarCardViewModel({
     required this.noInternet,
@@ -85,6 +90,7 @@ class CalendarCardViewModel {
     required this.theme,
     required this.selected,
     required this.absenceMark,
+    this.lessonTimes = const [],
   });
 
   @override
@@ -94,7 +100,16 @@ class CalendarCardViewModel {
       other.theme == theme &&
       other.selected == selected &&
       other.noInternet == noInternet &&
-      other.absenceMark == absenceMark;
+      other.absenceMark == absenceMark &&
+      _sameTimes(other.lessonTimes, lessonTimes);
+
+  static bool _sameTimes(List<LessonTime> a, List<LessonTime> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   @override
   int get hashCode =>

@@ -557,6 +557,196 @@ void main() {
     });
   });
 
+  group("lesson census and the year budget", () {
+    /// A week of lessons, [subject: lessons per week], spread over Mon–Fri.
+    ///
+    /// Lesson numbers are handed out per day, so no two lessons of a day share
+    /// one — an absence names a date and an hour, and a collision would make
+    /// it belong to two subjects at once.
+    CalendarState week(UtcDateTime monday, Map<String, int> perWeek) {
+      final subjectsPerDay = <UtcDateTime, List<String>>{};
+      for (final entry in perWeek.entries) {
+        for (var i = 0; i < entry.value; i++) {
+          final day = monday.add(Duration(days: i % 5));
+          subjectsPerDay.putIfAbsent(day, () => []).add(entry.key);
+        }
+      }
+
+      final days = <UtcDateTime, CalendarDay>{};
+      for (final entry in subjectsPerDay.entries) {
+        days[entry.key] = CalendarDay(
+          (b) => b
+            ..date = entry.key
+            ..hours = ListBuilder([
+              for (var i = 0; i < entry.value.length; i++)
+                CalendarHour(
+                  (b) => b
+                    ..fromHour = i + 1
+                    ..toHour = i + 1
+                    ..subject = entry.value[i]
+                    ..rooms = ListBuilder<String>()
+                    ..timeSpans = ListBuilder<TimeSpan>()
+                    ..homeworkExams = ListBuilder<HomeworkExam>()
+                    ..lessonContents = ListBuilder<LessonContent>(),
+                ),
+            ]),
+        );
+      }
+      return CalendarState((b) => b..days = MapBuilder(days));
+    }
+
+    final monday = UtcDateTime(2026, 3, 9);
+
+    test("counts the lessons of the year and of what has happened", () {
+      final census = LessonCensus.of(
+        week(monday, {"BWL": 10, "Italienisch": 1}),
+        // Wednesday of that week: Monday to Wednesday have happened.
+        now: UtcDateTime(2026, 3, 11),
+      );
+      expect(census.total, 11);
+      expect(census.weeks, 1);
+      expect(census.totalOf("BWL"), 10);
+      expect(census.totalOf("Italienisch"), 1);
+      expect(census.lessonsPerWeekOf("BWL"), 10);
+      expect(census.elapsed, lessThan(census.total));
+      expect(census.remaining, census.total - census.elapsed);
+    });
+
+    test("a day the calendar never saw contributes nothing", () {
+      final census = LessonCensus.of(CalendarState(), now: monday);
+      expect(census.total, 0);
+      expect(census.lessonsPerWeek, 0);
+    });
+
+    // Missing the first day of the year is 100 % of what has happened and
+    // almost nothing of the year. One number cannot say both.
+    test("the two percentages differ early in the year", () {
+      final calendar = week(monday, {"BWL": 10});
+      final budget = AbsenceStats.yearBudget(
+        absences: [_group([_absence(9, 1), _absence(9, 2)])],
+        calendar: calendar,
+        now: UtcDateTime(2026, 3, 9),
+        limitPercentage: 20,
+      );
+
+      expect(budget, isNotNull);
+      // Monday holds two lessons of the ten; both were missed.
+      expect(budget!.percentageSoFar, 100);
+      expect(budget.percentageOfYear, closeTo(20, 0.01));
+      expect(budget.percentageSoFar, greaterThan(budget.percentageOfYear));
+    });
+
+    test("what is left is measured against the whole year", () {
+      final budget = AbsenceStats.yearBudget(
+        absences: [_group([_absence(9, 1)])],
+        calendar: week(monday, {"BWL": 10}),
+        now: UtcDateTime(2026, 3, 9),
+        limitPercentage: 20,
+      );
+      // 20 % of ten lessons is two; one is gone, so one is left — regardless
+      // of how few lessons have happened so far.
+      expect(budget!.allowedLessons, closeTo(2, 0.001));
+      expect(budget.remainingLessons, closeTo(1, 0.001));
+      expect(budget.exceeded, isFalse);
+    });
+
+    test("notices when the year's allowance is used up", () {
+      final budget = AbsenceStats.yearBudget(
+        absences: [
+          _group(List.generate(4, (i) => _absence(9, i + 1))),
+        ],
+        calendar: week(monday, {"BWL": 10}),
+        now: UtcDateTime(2026, 3, 9),
+        limitPercentage: 20,
+      );
+      expect(budget!.exceeded, isTrue);
+      expect(budget.remainingLessons, lessThan(0));
+    });
+
+    test("gives up when the calendar is empty", () {
+      expect(
+        AbsenceStats.yearBudget(
+          absences: [_group([_absence(9, 1)])],
+          calendar: CalendarState(),
+          now: monday,
+          limitPercentage: 20,
+        ),
+        isNull,
+      );
+    });
+
+    // Ten hours of a ten-hour subject and one hour of a one-hour subject are
+    // the same loss; the raw counts say otherwise.
+    test("weights subjects by how much of them there is", () {
+      final calendar = week(monday, {"BWL": 10, "Italienisch": 1});
+      // The Italian lesson sits on Monday, hour 11 % 10 + 1 -> see fixture.
+      final italianHour = calendar.days[monday]!.hours
+          .firstWhere((h) => h.subject == "Italienisch")
+          .fromHour;
+      final bwlHours = <Absence>[];
+      for (final hour in calendar.days[monday]!.hours) {
+        if (hour.subject == "BWL") bwlHours.add(_absence(9, hour.fromHour));
+      }
+
+      final load = AbsenceStats.subjectLoad(
+        absences: [
+          _group([...bwlHours, _absence(9, italianHour)]),
+        ],
+        calendar: calendar,
+        now: UtcDateTime(2026, 3, 9),
+      );
+
+      final italian = load.firstWhere((l) => l.subject == "Italienisch");
+      expect(italian.missedLessons, 1);
+      expect(italian.lessonsPerWeek, 1);
+      // One lesson of a once-a-week subject is a whole week of it.
+      expect(italian.weeksMissed, closeTo(1, 0.001));
+      expect(italian.percentage, 100);
+    });
+  });
+
+  group("late arrivals", () {
+    Absence late(int day, int hour, int minutes) => Absence(
+          (b) => b
+            ..minutes = 50 - minutes
+            ..minutesCameTooLate = minutes
+            ..minutesLeftTooEarly = 0
+            ..date = UtcDateTime(2026, 3, day)
+            ..hour = hour,
+        );
+
+    test("collects them per day, most recent first", () {
+      final days = AbsenceStats.lateArrivalsByDay([
+        _group([late(9, 1, 10), late(9, 2, 5), late(12, 1, 20)]),
+      ]);
+
+      expect(days, hasLength(2));
+      expect(days.first.date, UtcDateTime(2026, 3, 12));
+      expect(days.first.minutes, 20);
+      expect(days.last.minutes, 15);
+      expect(days.last.lessons, 2);
+    });
+
+    test("a plain absence is not a late arrival", () {
+      expect(AbsenceStats.lateArrivals([_group([_absence(9, 1)])]), isEmpty);
+      expect(AbsenceStats.lateArrivalsByDay([_group([_absence(9, 1)])]),
+          isEmpty);
+    });
+
+    test("leaving early is counted separately", () {
+      final early = Absence(
+        (b) => b
+          ..minutes = 20
+          ..minutesCameTooLate = 0
+          ..minutesLeftTooEarly = 20
+          ..date = UtcDateTime(2026, 3, 9)
+          ..hour = 6,
+      );
+      expect(AbsenceStats.earlyLeaves([_group([early])]), hasLength(1));
+      expect(AbsenceStats.lateArrivals([_group([early])]), isEmpty);
+    });
+  });
+
   group("SchoolYear", () {
     final holidays = [
       _holiday("Osterferien", UtcDateTime(2026, 4, 2), UtcDateTime(2026, 4, 7)),

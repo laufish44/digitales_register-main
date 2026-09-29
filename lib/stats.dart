@@ -28,6 +28,7 @@ import 'dart:math' as math;
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/utc_date_time.dart';
+import 'package:dr/util.dart' show toMonday;
 
 /// A grade that actually counts towards an average.
 bool countsTowardsAverage(GradeAll grade) =>
@@ -363,6 +364,265 @@ class AbsenceStats {
   /// The share [count] makes up of [total], as a percentage.
   static double share(int count, int total) =>
       total <= 0 ? 0 : count * 100 / total;
+
+  /// Every lesson the student came late to.
+  static List<LateArrival> lateArrivals(Iterable<AbsenceGroup> absences) {
+    final result = <LateArrival>[];
+    for (final group in absences) {
+      for (final absence in group.absences) {
+        if (absence.minutesCameTooLate <= 0) continue;
+        result.add(LateArrival(
+          date: absence.date,
+          hour: absence.hour,
+          minutes: absence.minutesCameTooLate,
+        ));
+      }
+    }
+    return result..sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  /// Every lesson the student left before the end.
+  static List<LateArrival> earlyLeaves(Iterable<AbsenceGroup> absences) {
+    final result = <LateArrival>[];
+    for (final group in absences) {
+      for (final absence in group.absences) {
+        if (absence.minutesLeftTooEarly <= 0) continue;
+        result.add(LateArrival(
+          date: absence.date,
+          hour: absence.hour,
+          minutes: absence.minutesLeftTooEarly,
+        ));
+      }
+    }
+    return result..sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  /// Late arrivals collected per day, most recent first.
+  static List<LateArrivalDay> lateArrivalsByDay(
+      Iterable<AbsenceGroup> absences) {
+    final byDay = <UtcDateTime, List<LateArrival>>{};
+    for (final arrival in lateArrivals(absences)) {
+      final day = UtcDateTime(
+          arrival.date.year, arrival.date.month, arrival.date.day);
+      byDay.putIfAbsent(day, () => []).add(arrival);
+    }
+    final days = byDay.entries
+        .map((e) => LateArrivalDay(
+              date: e.key,
+              minutes: e.value.fold<int>(0, (sum, a) => sum + a.minutes),
+              lessons: e.value.length,
+            ))
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+    return days;
+  }
+
+  /// Missed lessons per subject, set against how much of that subject there is.
+  ///
+  /// Ten missed lessons of a subject taught ten times a week is one week of it;
+  /// so is one missed lesson of a subject taught once. Comparing the raw counts
+  /// makes the big subject look like the problem when it is only the biggest.
+  static List<SubjectAbsenceLoad> subjectLoad({
+    required Iterable<AbsenceGroup> absences,
+    required CalendarState calendar,
+    required UtcDateTime now,
+  }) {
+    final census = LessonCensus.of(calendar, now: now);
+    final missed =
+        missedBySubject(absences: absences, calendar: calendar).bySubject;
+
+    final result = <SubjectAbsenceLoad>[];
+    for (final entry in missed.entries) {
+      result.add(SubjectAbsenceLoad(
+        subject: entry.key,
+        missedLessons: entry.value,
+        lessonsPerWeek: census.lessonsPerWeekOf(entry.key),
+        totalLessons: census.totalOf(entry.key),
+      ));
+    }
+    result.sort((a, b) => b.weeksMissed.compareTo(a.weeksMissed));
+    return result;
+  }
+
+  /// What is left of the allowance, measured against the whole school year.
+  ///
+  /// Unlike [budget] this does not work the year's size back out of the
+  /// register's percentage — it counts the lessons in the calendar, which is
+  /// fetched in full on login. That matters early in the year: missing the
+  /// first day is 100 % of what has happened so far but a rounding error of
+  /// the year.
+  static YearAbsenceBudget? yearBudget({
+    required Iterable<AbsenceGroup> absences,
+    required CalendarState calendar,
+    required UtcDateTime now,
+    required double limitPercentage,
+  }) {
+    final census = LessonCensus.of(calendar, now: now);
+    if (census.total <= 0) return null;
+    return YearAbsenceBudget(
+      missedLessons: missedLessons(absences),
+      census: census,
+      limitPercentage: limitPercentage,
+    );
+  }
+}
+
+/// One lesson the student was late to, or left early from.
+class LateArrival {
+  const LateArrival({
+    required this.date,
+    required this.hour,
+    required this.minutes,
+  });
+
+  final UtcDateTime date;
+  final int hour;
+  final int minutes;
+}
+
+/// All the late arrivals of one day.
+class LateArrivalDay {
+  const LateArrivalDay({
+    required this.date,
+    required this.minutes,
+    required this.lessons,
+  });
+
+  final UtcDateTime date;
+  final int minutes;
+  final int lessons;
+}
+
+class SubjectAbsenceLoad {
+  const SubjectAbsenceLoad({
+    required this.subject,
+    required this.missedLessons,
+    required this.lessonsPerWeek,
+    required this.totalLessons,
+  });
+
+  final String subject;
+  final int missedLessons;
+
+  /// How often this subject is taught in an average week.
+  final double lessonsPerWeek;
+
+  /// How many lessons of it the year holds in total.
+  final int totalLessons;
+
+  /// The missed lessons expressed in weeks of this subject — the figure that
+  /// compares fairly across subjects of different sizes.
+  double get weeksMissed =>
+      lessonsPerWeek <= 0 ? 0 : missedLessons / lessonsPerWeek;
+
+  /// The share of this subject's lessons that was missed.
+  double get percentage =>
+      totalLessons <= 0 ? 0 : missedLessons * 100 / totalLessons;
+}
+
+/// How many lessons the school year has, in total and so far.
+///
+/// Counted from the calendar, which is fetched for the whole year after
+/// logging in. A day the calendar has never seen simply contributes nothing,
+/// so the numbers are a floor rather than a guess.
+class LessonCensus {
+  const LessonCensus({
+    required this.total,
+    required this.elapsed,
+    required this.weeks,
+    required this.perSubject,
+  });
+
+  /// Lessons in the whole school year.
+  final int total;
+
+  /// Lessons up to and including today.
+  final int elapsed;
+
+  /// How many weeks of school the calendar covers.
+  final int weeks;
+
+  /// Lessons per subject across the year.
+  final Map<String, int> perSubject;
+
+  int get remaining => total - elapsed;
+
+  int totalOf(String subject) => perSubject[subject] ?? 0;
+
+  double lessonsPerWeekOf(String subject) =>
+      weeks <= 0 ? 0 : totalOf(subject) / weeks;
+
+  /// Lessons in an average school week.
+  double get lessonsPerWeek => weeks <= 0 ? 0 : total / weeks;
+
+  /// Lessons on an average school day, for turning hours into days.
+  double get lessonsPerDay => lessonsPerWeek / 5;
+
+  static LessonCensus of(CalendarState calendar, {required UtcDateTime now}) {
+    final today = UtcDateTime(now.year, now.month, now.day);
+    var total = 0, elapsed = 0;
+    final perSubject = <String, int>{};
+    final mondays = <UtcDateTime>{};
+
+    for (final day in calendar.days.values) {
+      final date = UtcDateTime(day.date.year, day.date.month, day.date.day);
+      var onThisDay = 0;
+      for (final hour in day.hours) {
+        onThisDay += hour.length;
+        perSubject.update(hour.subject, (v) => v + hour.length,
+            ifAbsent: () => hour.length);
+      }
+      if (onThisDay == 0) continue;
+      total += onThisDay;
+      if (!date.isAfter(today)) elapsed += onThisDay;
+      mondays.add(toMonday(date));
+    }
+
+    return LessonCensus(
+      total: total,
+      elapsed: elapsed,
+      weeks: mondays.length,
+      perSubject: perSubject,
+    );
+  }
+}
+
+class YearAbsenceBudget {
+  const YearAbsenceBudget({
+    required this.missedLessons,
+    required this.census,
+    required this.limitPercentage,
+  });
+
+  final double missedLessons;
+  final LessonCensus census;
+  final double limitPercentage;
+
+  /// How many lessons may be missed in the whole year before the limit.
+  double get allowedLessons => census.total * limitPercentage / 100;
+
+  /// How many are left of that. Negative once the limit is passed.
+  double get remainingLessons => allowedLessons - missedLessons;
+
+  bool get exceeded => remainingLessons < 0;
+
+  /// The share of the lessons that have happened so far. This is the figure
+  /// that reads 100 % when the first day of the year is missed.
+  double get percentageSoFar =>
+      census.elapsed <= 0 ? 0 : missedLessons * 100 / census.elapsed;
+
+  /// The share of the whole school year.
+  double get percentageOfYear =>
+      census.total <= 0 ? 0 : missedLessons * 100 / census.total;
+
+  /// What is left, as whole school days.
+  double get remainingDays => census.lessonsPerDay <= 0
+      ? 0
+      : remainingLessons / census.lessonsPerDay;
+
+  /// What is left, as whole school weeks.
+  double get remainingWeeks =>
+      census.lessonsPerWeek <= 0 ? 0 : remainingLessons / census.lessonsPerWeek;
 }
 
 class AbsenceBudget {

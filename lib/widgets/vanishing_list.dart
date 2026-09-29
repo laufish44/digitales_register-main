@@ -67,15 +67,20 @@ class _VanishingListState extends State<VanishingList> {
 
     final incoming = {for (final item in widget.items) item.id: item};
 
-    // Walk the current order, keeping departing rows where they were so the
-    // ones below them do not jump up before the animation has run.
-    final next = <VanishingItem>[];
-    for (final item in _shown) {
-      next.add(incoming[item.id] ?? item);
+    // The incoming list decides the order — it is sorted, and a row that comes
+    // back (a homework un-ticked again) has to land at its date, not at the
+    // bottom. Only the rows on their way out are spliced back in, at the index
+    // they held, so the ones below them do not jump up early.
+    final next = List.of(widget.items);
+    for (var i = 0; i < _shown.length; i++) {
+      final item = _shown[i];
+      if (incoming.containsKey(item.id)) continue;
+      next.insert(i.clamp(0, next.length), item);
     }
-    for (final item in widget.items) {
-      if (!_shown.any((shown) => shown.id == item.id)) next.add(item);
-    }
+
+    // A row that returned while it was still collapsing has to be shown in
+    // full again, not finish the animation it no longer needs.
+    _leaving.removeWhere(incoming.containsKey);
 
     final gone = [
       for (final item in next)
@@ -95,12 +100,18 @@ class _VanishingListState extends State<VanishingList> {
       Future<void>.delayed(widget.duration, () {
         if (!mounted) return;
         setState(() {
-          _shown = _shown.where((item) => !gone.contains(item.id)).toList();
+          // Only drop what is still gone: an id that came back in the meantime
+          // is a live row again and must survive this cleanup.
+          final stillGone =
+              gone.where((id) => !_isCurrent(id)).toSet();
+          _shown = _shown.where((item) => !stillGone.contains(item.id)).toList();
           _leaving.removeAll(gone);
         });
       });
     });
   }
+
+  bool _isCurrent(String id) => widget.items.any((item) => item.id == id);
 
   @override
   Widget build(BuildContext context) {
