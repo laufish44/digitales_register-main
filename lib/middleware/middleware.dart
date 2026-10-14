@@ -22,6 +22,7 @@ import 'dart:io';
 
 import 'package:built_redux/built_redux.dart';
 import 'package:dio/dio.dart' as dio;
+import 'package:dr/absence_request.dart';
 import 'package:dr/actions/absences_actions.dart';
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/actions/calendar_actions.dart';
@@ -676,7 +677,8 @@ Future<String> _getAttachmentDownloadDirectory() async {
 /// The location an attachment named [fileName] is stored at.
 Future<File> _attachmentFile(String fileName) async {
   return File(
-    joinPath(await _getAttachmentDownloadDirectory(), sanitizeFileName(fileName)),
+    joinPath(
+        await _getAttachmentDownloadDirectory(), sanitizeFileName(fileName)),
   );
 }
 
@@ -891,4 +893,3 @@ Future<bool?> askShouldOverwriteFile(String fileName) async {
     ),
   );
 }
-

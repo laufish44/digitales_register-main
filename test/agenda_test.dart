@@ -865,6 +865,7 @@ void main() {
       expect(byName["Osterferien"]!.end, UtcDateTime(2027, 3, 30));
       expect(
           byName["Faschingsferien"]!.contains(UtcDateTime(2027, 2, 8)), isTrue);
+      expect(byName["Faschingsferien"]!.start, UtcDateTime(2027, 2, 5));
       expect(byName["Faschingsferien"]!.contains(UtcDateTime(2027, 2, 12)),
           isTrue);
       expect(defaultLastSchoolDayFor(UtcDateTime(2026, 10, 14)),
@@ -875,7 +876,9 @@ void main() {
 
     // The school calendar prints how many days of school each weekday gets.
     // Counting them from the table proves every break was typed in right.
-    test("the 2026/27 calendar has the printed 175 days of school", () {
+    // One difference on purpose: the sheet prints Fr 35 / 175, but the
+    // Faschingsferien already start on Friday 5 February.
+    test("the 2026/27 calendar has its 174 days of school", () {
       final official = officialSchoolCalendar(2026)!;
       final days = schoolDays(
         official.firstDay,
@@ -891,9 +894,9 @@ void main() {
         DateTime.tuesday: 35,
         DateTime.wednesday: 36,
         DateTime.thursday: 35,
-        DateTime.friday: 35,
+        DateTime.friday: 34,
       });
-      expect(days, hasLength(175));
+      expect(days, hasLength(174));
     });
 
     test("years without a published calendar still get computed holidays", () {

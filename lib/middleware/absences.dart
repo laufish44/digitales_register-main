@@ -36,16 +36,6 @@ Future<void> _loadAbsences(
   }
 }
 
-/// `YYYY-MM-DD`, the format the web app sends.
-String _absenceDate(UtcDateTime date) =>
-    "${date.year.toString().padLeft(4, "0")}-"
-    "${date.month.toString().padLeft(2, "0")}-"
-    "${date.day.toString().padLeft(2, "0")}";
-
-/// Local midnight of [date] as JSON turns a JavaScript `Date` into it.
-String _absenceDateObject(UtcDateTime date) =>
-    DateTime(date.year, date.month, date.day).toUtc().toIso8601String();
-
 /// The message of an error the server answered with instead of failing the
 /// request, or null when there is none.
 String? _serverError(dynamic response) {
@@ -65,23 +55,16 @@ Future<void> _addFutureAbsence(
   final payload = action.payload;
   await api.actions.absencesActions.setSubmitting(true);
   try {
-    // The same object the web app posts (`saveFutureAbsence`): the picked days
-    // both as date objects and as `YYYY-MM-DD`, the lesson numbers, and the
-    // reason with its signature. Without the last two nothing gets saved.
     final dynamic response = await wrapper.send(
-      "api/student/dashboard/absence_future",
-      args: {
-        "futureAbsence": <String, Object?>{
-          "startDateObject": _absenceDateObject(payload.startDate),
-          "startTime": payload.startHour,
-          "endDateObject": _absenceDateObject(payload.endDate),
-          "endTime": payload.endHour,
-          "reason": payload.reason,
-          "reason_signature": payload.signature,
-          "startDate": _absenceDate(payload.startDate),
-          "endDate": _absenceDate(payload.endDate),
-        },
-      },
+      futureAbsencePath,
+      args: futureAbsenceRequest(
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+        startHour: payload.startHour,
+        endHour: payload.endHour,
+        reason: payload.reason,
+        signature: payload.signature,
+      ),
     );
     final error = _serverError(response);
     if (response == null || error != null) {
@@ -116,7 +99,7 @@ Future<void> _removeFutureAbsence(
   await api.actions.absencesActions.setSubmitting(true);
   try {
     final dynamic response = await wrapper.send(
-      "api/student/dashboard/remove_absence_future",
+      removeFutureAbsencePath,
       args: {"futureAbsence": json.decode(raw)},
     );
     final error = _serverError(response);

@@ -18,6 +18,7 @@
 /// Offers an available update and shows the download progress.
 library;
 
+import 'package:dr/ui/simple_markdown.dart';
 import 'package:dr/update/update_service.dart';
 import 'package:dr/util.dart';
 import 'package:flutter/material.dart';
@@ -92,7 +93,16 @@ class _UpdateDialogState extends State<_UpdateDialog> {
           if (widget.info.notes != null && widget.info.notes!.trim().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: Text(widget.info.notes!),
+              // The notes are Markdown from GitHub and can be long; the
+              // buttons below must stay reachable.
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.45,
+                ),
+                child: SingleChildScrollView(
+                  child: SimpleMarkdown(widget.info.notes!),
+                ),
+              ),
             ),
           if (build == null)
             const Padding(

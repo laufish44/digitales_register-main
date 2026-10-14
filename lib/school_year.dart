@@ -67,8 +67,10 @@ class SchoolCalendar {
 /// for a year nobody has typed in yet (the computed defaults apply then).
 ///
 /// 2026/27 is taken from the published Schulkalender: 7 September 2026 to
-/// 16 June 2027, 175 days of school (Mo 34, Di 35, Mi 36, Do 35, Fr 35) —
-/// a test counts them against those totals, so a typo cannot go unnoticed.
+/// 16 June 2027, 174 days of school (Mo 34, Di 35, Mi 36, Do 35, Fr 34) — a
+/// test counts them, so a typo cannot go unnoticed. The sheet itself prints
+/// Fr 35 and 175, but the Faschingsferien start on Friday 5 February (as the
+/// school confirmed), which its totals do not reflect.
 SchoolCalendar? officialSchoolCalendar(int startYear) {
   switch (startYear) {
     case 2026:
@@ -81,7 +83,8 @@ SchoolCalendar? officialSchoolCalendar(int startYear) {
           // Monday the 7th is a bridge day before the feast on Tuesday.
           _holiday("Maria Empfängnis", _day(2026, 12, 5), _day(2026, 12, 8)),
           _holiday("Weihnachtsferien", _day(2026, 12, 24), _day(2027, 1, 6)),
-          _holiday("Faschingsferien", _day(2027, 2, 6), _day(2027, 2, 14)),
+          // From the Friday after Unsinniger Donnerstag.
+          _holiday("Faschingsferien", _day(2027, 2, 5), _day(2027, 2, 14)),
           _holiday("Osterferien", _day(2027, 3, 25), _day(2027, 3, 30)),
           _holiday("Pfingstmontag", _day(2027, 5, 15), _day(2027, 5, 17)),
           _holiday("Tag der Republik", _day(2027, 6, 2), _day(2027, 6, 2)),
@@ -184,7 +187,7 @@ UtcDateTime defaultLastSchoolDayFor(UtcDateTime date) {
 /// Bumped whenever [officialSchoolCalendar] gains or corrects a year, so a
 /// stored state with older holidays is brought up to date once, see
 /// `SettingsState.schoolCalendarRevision`.
-const schoolCalendarRevision = 1;
+const schoolCalendarRevision = 2;
 
 /// Whether stored [holidays] and [lastSchoolDay] belong to a school year that
 /// is over (or never had any), so the defaults of the current one should
