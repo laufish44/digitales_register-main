@@ -321,8 +321,7 @@ Future<LessonTime?> _editLessonTime(
     final picked = await showTimePicker(
       context: context,
       helpText: title,
-      initialTime:
-          TimeOfDay(hour: (minutes ~/ 60) % 24, minute: minutes % 60),
+      initialTime: TimeOfDay(hour: (minutes ~/ 60) % 24, minute: minutes % 60),
     );
     return picked == null ? null : picked.hour * 60 + picked.minute;
   }
@@ -412,8 +411,10 @@ class _HolidaySettings extends StatelessWidget {
             trailing: IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: "Entfernen",
-              onPressed: () => onChanged(
-                  [for (final h in holidays) if (h != holiday) h]),
+              onPressed: () => onChanged([
+                for (final h in holidays)
+                  if (h != holiday) h
+              ]),
             ),
             onTap: () async {
               final edited = await _showHolidayDialog(context, holiday);
@@ -527,27 +528,6 @@ Future<HolidayPeriod?> _showHolidayDialog(
           ),
         ],
       ),
-    ),
-  );
-}
-
-Future<int?> _askForWeeklyLessons(BuildContext context, int current) {
-  const choices = [0, 20, 25, 28, 30, 32, 34, 36, 40];
-  return showDialog<int>(
-    context: context,
-    builder: (context) => SimpleDialog(
-      title: const Text("Stunden pro Woche"),
-      children: [
-        for (final value in choices)
-          RadioListTile<int>(
-            value: value,
-            groupValue: current,
-            title: Text(value == 0
-                ? "Automatisch aus dem Stundenplan"
-                : "$value Stunden"),
-            onChanged: (picked) => Navigator.pop(context, picked),
-          ),
-      ],
     ),
   );
 }
@@ -702,6 +682,7 @@ class SettingsPageWidget extends StatefulWidget {
   final OnSettingChanged<bool> onSetShowAbsenceBudget;
   final OnSettingChanged<List<LessonTime>> onSetLessonSchedule;
   final OnSettingChanged<bool> onSetPrefetchWholeCalendar;
+  final OnSettingChanged<int> onSetSemestersPerYear;
   final VoidCallback onShowProfile;
   final SettingsViewModel vm;
 
@@ -748,6 +729,7 @@ class SettingsPageWidget extends StatefulWidget {
     required this.onSetShowAbsenceBudget,
     required this.onSetLessonSchedule,
     required this.onSetPrefetchWholeCalendar,
+    required this.onSetSemestersPerYear,
   });
 
   @override
@@ -787,6 +769,56 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
       });
     }
     super.initState();
+  }
+
+  /// While the slider is dragged, so it follows the finger without writing
+  /// the settings on every frame.
+  int? _draggedWeeklyLessons;
+
+  /// "Stunden pro Woche" as a slider that starts at what the calendar shows,
+  /// with a way back to working it out automatically.
+  Widget _weeklyLessonsTile() {
+    final detected = widget.vm.detectedWeeklyLessons;
+    final automatic = widget.vm.weeklyLessons == 0;
+    final stored = automatic ? (detected ?? 30) : widget.vm.weeklyLessons;
+    final value = (_draggedWeeklyLessons ?? stored).clamp(1, 60);
+    final String hint;
+    if (automatic) {
+      hint = detected == null
+          ? "Wird aus dem Stundenplan ermittelt, sobald der Kalender geladen ist"
+          : "Aus dem Stundenplan ermittelt";
+    } else {
+      hint = detected == null || detected == widget.vm.weeklyLessons
+          ? "Selbst eingestellt"
+          : "Selbst eingestellt – laut Stundenplan $detected";
+    }
+    return ListTile(
+      title: Text("Stunden pro Woche: $value"),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(hint),
+          Slider(
+            value: value.toDouble(),
+            min: 1,
+            max: 60,
+            divisions: 59,
+            label: "$value",
+            onChanged: (v) => setState(() => _draggedWeeklyLessons = v.round()),
+            onChangeEnd: (v) {
+              setState(() => _draggedWeeklyLessons = null);
+              widget.onSetWeeklyLessons(v.round());
+            },
+          ),
+        ],
+      ),
+      trailing: automatic
+          ? null
+          : TextButton(
+              onPressed: () => widget.onSetWeeklyLessons(0),
+              child: const Text("Automatisch"),
+            ),
+    );
   }
 
   Future<void> _checkForUpdates(BuildContext context) async {
@@ -1067,6 +1099,22 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
               ),
             ),
           ),
+          ListTile(
+            title: const Text("Semester pro Schuljahr"),
+            subtitle: Text(widget.vm.semestersPerYear == 1
+                ? "Ein Semester – die Noten gelten für das ganze Jahr"
+                : "Zwei Semester, wie bisher üblich"),
+            trailing: SegmentedButton<int>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: 1, label: Text("1")),
+                ButtonSegment(value: 2, label: Text("2")),
+              ],
+              selected: {widget.vm.semestersPerYear},
+              onSelectionChanged: (value) =>
+                  widget.onSetSemestersPerYear(value.single),
+            ),
+          ),
           SwitchListTile.adaptive(
             title: const Text("Noten in einem Diagramm darstellen"),
             onChanged: (bool value) {
@@ -1250,8 +1298,8 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
           ),
           SwitchListTile.adaptive(
             title: const Text("Benachrichtigungen anzeigen"),
-            subtitle: const Text(
-                "Melden, sobald es etwas Neues im Register gibt"),
+            subtitle:
+                const Text("Melden, sobald es etwas Neues im Register gibt"),
             onChanged: widget.onSetNotificationsEnabled,
             value: widget.vm.notificationsEnabled,
           ),
@@ -1341,8 +1389,8 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
             onTap: () async {
               final picked = await showDatePicker(
                 context: context,
-                initialDate:
-                    _asLocalDay(widget.vm.lastSchoolDay ?? defaultLastSchoolDay),
+                initialDate: _asLocalDay(
+                    widget.vm.lastSchoolDay ?? defaultLastSchoolDay),
                 firstDate: DateTime(now.year - 1),
                 lastDate: DateTime(now.year + 2),
                 helpText: "Letzter Schultag",
@@ -1424,22 +1472,7 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
             onChanged: widget.onSetShowAbsenceBudget,
             value: widget.vm.showAbsenceBudget,
           ),
-          if (widget.vm.showAbsenceBudget)
-            ListTile(
-              title: const Text("Stunden pro Woche"),
-              subtitle: Text(
-                widget.vm.weeklyLessons == 0
-                    ? "Wird aus dem Stundenplan ermittelt"
-                    : "${widget.vm.weeklyLessons} Stunden – für die Umrechnung "
-                        "in Wochen",
-              ),
-              trailing: const Icon(Icons.edit),
-              onTap: () async {
-                final value = await _askForWeeklyLessons(
-                    context, widget.vm.weeklyLessons);
-                if (value != null) widget.onSetWeeklyLessons(value);
-              },
-            ),
+          if (widget.vm.showAbsenceBudget) _weeklyLessonsTile(),
           SwitchListTile.adaptive(
             title: const Text("Anhänge im Voraus laden"),
             subtitle: const Text(
@@ -1463,8 +1496,7 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
           ),
           SwitchListTile.adaptive(
             title: const Text("Mitteilungen schreiben"),
-            subtitle:
-                const Text("Neue Mitteilungen direkt aus der App senden"),
+            subtitle: const Text("Neue Mitteilungen direkt aus der App senden"),
             onChanged: widget.onSetMessageComposeEnabled,
             value: widget.vm.messageComposeEnabled,
           ),
@@ -1488,8 +1520,7 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
             subtitle: Text(
               widget.vm.releaseSource.isEmpty
                   ? "Nicht eingerichtet"
-                  : UpdateService.gitHubApiUri(widget.vm.releaseSource) !=
-                          null
+                  : UpdateService.gitHubApiUri(widget.vm.releaseSource) != null
                       ? "${widget.vm.releaseSource} (GitHub-Releases)"
                       : widget.vm.releaseSource,
             ),

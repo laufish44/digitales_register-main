@@ -37,7 +37,22 @@ Future<void> _setSemester(
     ActionHandler next,
     Action<Semester> action) async {
   await next(action);
-  await api.actions.gradesActions.load(action.payload);
+  // The reducer may have overruled the pick (one semester per year), so load
+  // what is actually shown.
+  await api.actions.gradesActions.load(api.state.gradesState.semester);
+}
+
+/// The semesters to ask the server for when [semester] is wanted.
+///
+/// Schools with one semester per year only have the first one, so there is
+/// no point switching to the second (or asking for both).
+List<Semester> _semestersToLoad(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+    Semester semester) {
+  if (api.state.settingsState.semestersPerYear == 1) return [Semester.first];
+  return semester == Semester.all
+      ? [Semester.first, Semester.second]
+      : [semester];
 }
 
 Future<void> _loadGrades(
@@ -48,9 +63,7 @@ Future<void> _loadGrades(
 
   await next(action);
   _doForSemester(
-    action.payload == Semester.all
-        ? [Semester.first, Semester.second]
-        : [action.payload],
+    _semestersToLoad(api, action.payload),
     (s) async {
       final dynamic data = await wrapper.send(
         _subjects,
@@ -80,9 +93,7 @@ Future<void> _loadGradesDetails(
   await next(action);
 
   _doForSemester(
-    action.payload.semester == Semester.all
-        ? [Semester.first, Semester.second]
-        : [action.payload.semester],
+    _semestersToLoad(api, action.payload.semester),
     (s) async {
       dynamic data = await wrapper.send(
         _subjectsDetail,

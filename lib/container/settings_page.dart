@@ -20,6 +20,7 @@ import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/lesson_times.dart';
 import 'package:dr/reducer/settings.dart' show reconcileDashboardWidgets;
+import 'package:dr/stats.dart' show AbsenceStats;
 import 'package:dr/ui/settings_page_widget.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:dynamic_theme/dynamic_theme.dart';
@@ -78,8 +79,7 @@ class SettingsPageContainer extends StatelessWidget {
               actions.settingsActions.setNotificationInterval.call,
           onSetBackgroundServiceEnabled:
               actions.settingsActions.setBackgroundServiceEnabled.call,
-          onSetShowGradeTrends:
-              actions.settingsActions.setShowGradeTrends.call,
+          onSetShowGradeTrends: actions.settingsActions.setShowGradeTrends.call,
           onSetAbsenceWarningEnabled:
               actions.settingsActions.setAbsenceWarningEnabled.call,
           onSetAbsenceWarningThreshold:
@@ -95,8 +95,7 @@ class SettingsPageContainer extends StatelessWidget {
           onSetThemePreset: actions.settingsActions.setThemePreset.call,
           onSetUpdateCheckEnabled:
               actions.settingsActions.setUpdateCheckEnabled.call,
-          onSetReleaseSource:
-              actions.settingsActions.setReleaseSource.call,
+          onSetReleaseSource: actions.settingsActions.setReleaseSource.call,
           onSetDashboardWidgets: (list) =>
               actions.settingsActions.setDashboardWidgets(BuiltList(list)),
           onSetHolidays: (list) =>
@@ -111,6 +110,8 @@ class SettingsPageContainer extends StatelessWidget {
               actions.settingsActions.setLessonSchedule(BuiltList(list)),
           onSetPrefetchWholeCalendar:
               actions.settingsActions.setPrefetchWholeCalendar.call,
+          onSetSemestersPerYear:
+              actions.settingsActions.setSemestersPerYear.call,
         );
       },
       connect: (state) {
@@ -160,6 +161,11 @@ class SettingsViewModel {
   final bool showAbsenceBudget;
   final List<LessonTime> lessonSchedule;
   final bool prefetchWholeCalendar;
+  final int semestersPerYear;
+
+  /// Lessons in a normal week according to the calendar, what "Stunden pro
+  /// Woche" falls back to. Null before the calendar is loaded.
+  final int? detectedWeeklyLessons;
   final List<String> allSubjects;
   final List<String> ignoreForGradesAverage;
   final BuiltMap<String, SubjectTheme> subjectThemes;
@@ -188,8 +194,7 @@ class SettingsViewModel {
         notificationsEnabled = state.settingsState.notificationsEnabled,
         notificationIntervalSeconds =
             state.settingsState.notificationIntervalSeconds,
-        backgroundServiceEnabled =
-            state.settingsState.backgroundServiceEnabled,
+        backgroundServiceEnabled = state.settingsState.backgroundServiceEnabled,
         showGradeTrends = state.settingsState.showGradeTrends,
         absenceWarningEnabled = state.settingsState.absenceWarningEnabled,
         absenceWarningThreshold = state.settingsState.absenceWarningThreshold,
@@ -213,5 +218,8 @@ class SettingsViewModel {
         lessonSchedule =
             LessonTimes.resolve(state.settingsState.lessonSchedule),
         prefetchWholeCalendar = state.settingsState.prefetchWholeCalendar,
+        semestersPerYear = state.settingsState.semestersPerYear,
+        detectedWeeklyLessons =
+            AbsenceStats.weeklyLessonsFromCalendar(state.calendarState),
         demoMode = state.isDemo;
 }

@@ -8,6 +8,24 @@
 #include "flutter_window.h"
 #include "utils.h"
 
+namespace {
+
+// The app's visible window, if it is already open. Set in win32_window.cpp;
+// the background service's hidden window does not carry the property.
+HWND FindOpenMainWindow() {
+  HWND window = nullptr;
+  while ((window = ::FindWindowExW(nullptr, window,
+                                  L"FLUTTER_RUNNER_WIN32_WINDOW",
+                                  nullptr)) != nullptr) {
+    if (::GetPropW(window, L"DigitalesRegisterMainWindow") != nullptr) {
+      return window;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   // Attach to console when present (e.g., 'flutter run') or create a
@@ -38,6 +56,20 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                   [](const std::string& argument) {
                     return std::strcmp(argument.c_str(), "--background") == 0;
                   });
+
+  // One window is enough: starting the app again (from the start menu, or a
+  // click on a notification) brings the open one to the front instead of
+  // logging in a second time.
+  if (!run_in_background) {
+    if (HWND open_window = FindOpenMainWindow()) {
+      if (::IsIconic(open_window)) {
+        ::ShowWindow(open_window, SW_RESTORE);
+      }
+      ::SetForegroundWindow(open_window);
+      ::CoUninitialize();
+      return EXIT_SUCCESS;
+    }
+  }
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 

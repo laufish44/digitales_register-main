@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "it.digitalesregisterapp" "\0"
-            VALUE "FileDescription", "digitales_register" "\0"
+            VALUE "CompanyName", "Laurin Feichter" "\0"
+            VALUE "FileDescription", "Digitales Register" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "digitales_register" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2022 it.digitalesregisterapp. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2021 Michael Debertol, (C) 2026 Laurin Feichter. GPL-3.0-or-later" "\0"
             VALUE "OriginalFilename", "digitales_register.exe" "\0"
-            VALUE "ProductName", "digitales_register" "\0"
+            VALUE "ProductName", "Digitales Register" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

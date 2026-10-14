@@ -17,7 +17,7 @@
 
 part of 'middleware.dart';
 
-// `schoolYearStart` and `now` come from school_year.dart / util.dart, both
+// `firstSchoolDay` and `now` come from school_year.dart / util.dart, both
 // already imported by middleware.dart.
 
 final _calendarMiddleware =
@@ -74,8 +74,10 @@ Future<void> prefetchWholeCalendar(
   final settings = api.state.settingsState;
   // From the start of the school year to its last day, so the statistics cover
   // the whole year rather than just what is ahead.
-  final from = toMonday(UtcDateTime(schoolYearStart(now), 9, 1));
-  final until = settings.lastSchoolDay ?? now.add(const Duration(days: 120));
+  final from = toMonday(firstSchoolDay(now));
+  var until = settings.lastSchoolDay ?? defaultLastSchoolDayFor(now);
+  // A last day left over from an earlier school year would fetch nothing.
+  if (until.isBefore(from)) until = defaultLastSchoolDayFor(now);
 
   var monday = from;
   var fetched = 0;

@@ -44,6 +44,7 @@ class AbsencesPage extends StatelessWidget {
   final UtcDateTime? lastSchoolDay;
   final CalendarState calendar;
   final List<LessonTime> lessonTimes;
+  final String? signatureName;
   final void Function(AddFutureAbsencePayload) onAddFutureAbsence;
   final void Function(FutureAbsence) onRemoveFutureAbsence;
   final void Function(JustifyAbsencePayload) onJustifyAbsence;
@@ -62,6 +63,7 @@ class AbsencesPage extends StatelessWidget {
     required this.lastSchoolDay,
     required this.calendar,
     required this.lessonTimes,
+    this.signatureName,
     required this.onAddFutureAbsence,
     required this.onRemoveFutureAbsence,
     required this.onJustifyAbsence,
@@ -87,6 +89,7 @@ class AbsencesPage extends StatelessWidget {
           holidays: holidays,
           lastSchoolDay: lastSchoolDay,
           calendar: calendar,
+          signatureName: signatureName,
           onRemoveFutureAbsence: onRemoveFutureAbsence,
           onJustifyAbsence: onJustifyAbsence,
         ),
@@ -99,6 +102,7 @@ class AbsencesPage extends StatelessWidget {
                         context,
                         maxHour: maxHour,
                         lessonTimes: lessonTimes,
+                        signatureName: signatureName,
                         onAdd: onAddFutureAbsence,
                       ),
               icon: const Icon(Icons.event_busy),
@@ -120,12 +124,14 @@ Future<void> addFutureAbsence(
   required void Function(AddFutureAbsencePayload) onAdd,
   DateTime? initialDate,
   List<LessonTime> lessonTimes = const [],
+  String? signatureName,
 }) async {
   final payload = await showAddFutureAbsenceDialog(
     context,
     maxHour: maxHour,
     initialDate: initialDate,
     lessonTimes: lessonTimes,
+    initialSignature: signatureName,
   );
   if (payload != null) onAdd(payload);
 }
@@ -141,6 +147,7 @@ class AbsencesBody extends StatelessWidget {
   final List<HolidayPeriod> holidays;
   final UtcDateTime? lastSchoolDay;
   final CalendarState calendar;
+  final String? signatureName;
   final void Function(FutureAbsence) onRemoveFutureAbsence;
   final void Function(JustifyAbsencePayload) onJustifyAbsence;
 
@@ -156,6 +163,7 @@ class AbsencesBody extends StatelessWidget {
     this.holidays = const [],
     this.lastSchoolDay,
     required this.calendar,
+    this.signatureName,
     required this.onRemoveFutureAbsence,
     required this.onJustifyAbsence,
   });
@@ -172,8 +180,7 @@ class AbsencesBody extends StatelessWidget {
         ? AbsenceWarningBanner(
             statistic: state.statistic,
             threshold: warningThreshold,
-            notYetJustified:
-                AbsenceStats.notYetJustifiedCount(state.absences),
+            notYetJustified: AbsenceStats.notYetJustifiedCount(state.absences),
           )
         : const SizedBox.shrink();
 
@@ -279,6 +286,7 @@ class AbsencesBody extends StatelessWidget {
     final payload = await showJustifyAbsenceDialog(
       context,
       group: group,
+      initialSignature: signatureName,
       selfDeclarations: state.selfDeclarationActive
           ? state.selfDeclarations.toList()
           : const [],
@@ -312,39 +320,45 @@ class AbsenceBudgetCard extends StatelessWidget {
   final UtcDateTime? lastSchoolDay;
   final CalendarState calendar;
 
-  /// Lessons per week, from the setting or from the fullest week the calendar
-  /// has seen. Null when neither is available.
-  int? get _lessonsPerWeek {
-    if (weeklyLessons > 0) return weeklyLessons;
-    var best = 0;
-    final perWeek = <UtcDateTime, int>{};
-    for (final day in calendar.days.values) {
-      final monday = toMonday(day.date);
-      var lessons = 0;
-      for (final hour in day.hours) {
-        lessons += hour.length;
-      }
-      perWeek.update(monday, (v) => v + lessons, ifAbsent: () => lessons);
-    }
-    for (final lessons in perWeek.values) {
-      if (lessons > best) best = lessons;
-    }
-    return best > 0 ? best : null;
-  }
+  /// Lessons per week, from the setting or from what a normal week in the
+  /// calendar holds. Null when neither is available.
+  int? get _lessonsPerWeek => weeklyLessons > 0
+      ? weeklyLessons
+      : AbsenceStats.weeklyLessonsFromCalendar(calendar);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final budget = AbsenceStats.budget(
-      statistic: statistic,
+    final missed = AbsenceStats.missedLessons(absences);
+    // The whole school year, counted on the days of the school calendar - the
+    // same figure as on the statistics page. Worked back out of the register's
+    // percentage only while the calendar is not there yet; that estimate only
+    // knows the lessons so far, not the year.
+    final year = AbsenceStats.yearBudget(
       absences: absences,
+      calendar: calendar,
+      now: now,
       limitPercentage: limitPercentage.toDouble(),
+      schoolDays: schoolDaysOfYear(
+        now,
+        holidays: holidays,
+        lastSchoolDay: lastSchoolDay,
+      ),
     );
-    if (budget == null) {
+    final budget = year != null
+        ? null
+        : AbsenceStats.budget(
+            statistic: statistic,
+            absences: absences,
+            limitPercentage: limitPercentage.toDouble(),
+          );
+    if (year == null && budget == null) {
       return const SizedBox.shrink();
     }
 
-    final remaining = budget.remainingLessons;
+    final remaining = year?.remainingLessons ?? budget!.remainingLessons;
+    final allowed = year?.allowedLessons ?? budget!.allowedLessons;
+    final exceeded = remaining < 0;
     final perWeek = _lessonsPerWeek;
     final weeksLeft = _weeksLeft();
 
@@ -352,44 +366,71 @@ class AbsenceBudgetCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
       child: ExpansionTile(
         leading: Icon(
-          budget.exceeded ? Icons.error_outline : Icons.timelapse,
-          color: budget.exceeded ? theme.colorScheme.error : null,
+          exceeded ? Icons.error_outline : Icons.timelapse,
+          color: exceeded ? theme.colorScheme.error : null,
         ),
         title: Text(
-          budget.exceeded
+          exceeded
               ? "Du bist ${(-remaining).ceil()} Stunden über der Grenze"
               : "Du kannst noch ${remaining.floor()} Stunden fehlen",
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Text("bis zur Grenze von $limitPercentage %"),
+        subtitle: Text(
+          year != null
+              ? "bis zum Schulende – Grenze $limitPercentage % des Schuljahres"
+              : "bis zur Grenze von $limitPercentage %",
+        ),
         children: [
-          _row(
-            context,
-            "Bisher versäumt",
-            "${AbsenceStats.missedLessons(absences).round()} Stunden "
-                "(${gradeAverageFormat.format(budget.percentage)} %)",
-          ),
-          _row(
-            context,
-            "Stunden im Schuljahr",
-            "rund ${budget.estimatedTotalLessons.round()}",
-            hint: "Aus der Prozentangabe des Registers zurückgerechnet",
-          ),
+          _row(context, "Bisher versäumt", "${missed.round()} Stunden"),
+          if (year != null) ...[
+            _row(
+              context,
+              "Anteil bisher",
+              "${gradeAverageFormat.format(year.percentageSoFar)} %",
+              hint: "von ${year.census.elapsed} Stunden bis heute",
+            ),
+            _row(
+              context,
+              "Anteil am Schuljahr",
+              "${gradeAverageFormat.format(year.percentageOfYear)} %",
+            ),
+            _row(
+              context,
+              "Stunden im Schuljahr",
+              "${year.census.total}",
+              hint: year.census.schoolDays == null
+                  ? "Aus dem Stundenplan gezählt"
+                  : "${year.census.schoolDays} Schultage laut Schulkalender",
+            ),
+          ] else ...[
+            _row(
+              context,
+              "Anteil laut Register",
+              "${gradeAverageFormat.format(budget!.percentage)} %",
+            ),
+            _row(
+              context,
+              "Stunden im Schuljahr",
+              "rund ${budget.estimatedTotalLessons.round()}",
+              hint: "Aus der Prozentangabe des Registers zurückgerechnet – "
+                  "genauer, sobald der Kalender geladen ist",
+            ),
+          ],
           _row(
             context,
             "Erlaubt bis zur Grenze",
-            "${budget.allowedLessons.floor()} Stunden",
+            "${allowed.floor()} Stunden",
           ),
-          if (!budget.exceeded && weeksLeft != null && weeksLeft > 0)
+          if (!exceeded && weeksLeft != null && weeksLeft > 0)
             _row(
               context,
               "Auf die restlichen Wochen verteilt",
-              "${gradeAverageFormat.format(budget.perWeek(weeksLeft))} "
+              "${gradeAverageFormat.format(remaining / weeksLeft)} "
                   "Stunden pro Woche",
-              hint: "$weeksLeft Schulwochen bis zum "
-                  "${_formatDay(lastSchoolDay!)}",
+              hint: "${gradeAverageFormat.format(weeksLeft)} Schulwochen bis "
+                  "zum ${_formatDay(lastSchoolDay!)}",
             ),
-          if (!budget.exceeded && perWeek != null)
+          if (!exceeded && perWeek != null)
             _row(
               context,
               "Das sind",
@@ -399,7 +440,7 @@ class AbsenceBudgetCard extends StatelessWidget {
                   ? "$perWeek Stunden pro Woche (eingestellt)"
                   : "$perWeek Stunden pro Woche (aus dem Stundenplan)",
             ),
-          if (!budget.exceeded && perWeek != null)
+          if (!exceeded && perWeek != null)
             _row(
               context,
               "Oder",
@@ -431,7 +472,8 @@ class AbsenceBudgetCard extends StatelessWidget {
       dense: true,
       title: Text(label),
       subtitle: hint == null ? null : Text(hint),
-      trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+      trailing:
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
     );
   }
 

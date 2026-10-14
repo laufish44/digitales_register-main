@@ -47,9 +47,102 @@ HolidayPeriod _holiday(String name, UtcDateTime start, UtcDateTime end) =>
 int schoolYearStart(UtcDateTime date) =>
     date.month >= 9 ? date.year : date.year - 1;
 
+/// A school year as the school published it ("Schulkalender").
+class SchoolCalendar {
+  const SchoolCalendar({
+    required this.firstDay,
+    required this.lastDay,
+    required this.holidays,
+  });
+
+  final UtcDateTime firstDay;
+  final UtcDateTime lastDay;
+
+  /// Each break runs from the first free day to the last one, weekends around
+  /// it included, so "läuft" in the sidebar is true for the whole break.
+  final List<HolidayPeriod> holidays;
+}
+
+/// The published calendar of the school year starting in [startYear], or null
+/// for a year nobody has typed in yet (the computed defaults apply then).
+///
+/// 2026/27 is taken from the published Schulkalender: 7 September 2026 to
+/// 16 June 2027, 175 days of school (Mo 34, Di 35, Mi 36, Do 35, Fr 35) —
+/// a test counts them against those totals, so a typo cannot go unnoticed.
+SchoolCalendar? officialSchoolCalendar(int startYear) {
+  switch (startYear) {
+    case 2026:
+      return SchoolCalendar(
+        firstDay: _day(2026, 9, 7),
+        lastDay: _day(2027, 6, 16),
+        holidays: [
+          _holiday(
+              "Allerheiligenferien", _day(2026, 10, 31), _day(2026, 11, 8)),
+          // Monday the 7th is a bridge day before the feast on Tuesday.
+          _holiday("Maria Empfängnis", _day(2026, 12, 5), _day(2026, 12, 8)),
+          _holiday("Weihnachtsferien", _day(2026, 12, 24), _day(2027, 1, 6)),
+          _holiday("Faschingsferien", _day(2027, 2, 6), _day(2027, 2, 14)),
+          _holiday("Osterferien", _day(2027, 3, 25), _day(2027, 3, 30)),
+          _holiday("Pfingstmontag", _day(2027, 5, 15), _day(2027, 5, 17)),
+          _holiday("Tag der Republik", _day(2027, 6, 2), _day(2027, 6, 2)),
+        ],
+      );
+  }
+  return null;
+}
+
+/// The first day of school of the school year that contains [date].
+UtcDateTime firstSchoolDay(UtcDateTime date) {
+  final year = schoolYearStart(date);
+  final official = officialSchoolCalendar(year);
+  if (official != null) return official.firstDay;
+  // South Tyrol starts in the first half of September; the Monday of the week
+  // with the 5th is close enough for fetching the calendar.
+  return _day(year, 9, 5)
+      .subtract(Duration(days: _day(year, 9, 5).weekday - 1));
+}
+
+/// The days of school from [from] to [to], both inclusive: weekdays that are
+/// not part of any of the [holidays].
+List<UtcDateTime> schoolDays(
+  UtcDateTime from,
+  UtcDateTime to, {
+  Iterable<HolidayPeriod> holidays = const [],
+}) {
+  final result = <UtcDateTime>[];
+  var day = UtcDateTime(from.year, from.month, from.day);
+  final end = UtcDateTime(to.year, to.month, to.day);
+  while (!day.isAfter(end)) {
+    if (day.weekday <= DateTime.friday &&
+        !holidays.any((h) => h.contains(day))) {
+      result.add(day);
+    }
+    // Calendar arithmetic rather than adding 24 hours, so the loop does not
+    // drift if a UtcDateTime ever carries a time.
+    day = UtcDateTime(day.year, day.month, day.day + 1);
+  }
+  return result;
+}
+
+/// The school days of the year that contains [date], as configured: from the
+/// first day of school to [lastSchoolDay], without the [holidays].
+List<UtcDateTime> schoolDaysOfYear(
+  UtcDateTime date, {
+  required Iterable<HolidayPeriod> holidays,
+  UtcDateTime? lastSchoolDay,
+}) {
+  final first = firstSchoolDay(date);
+  var last = lastSchoolDay ?? defaultLastSchoolDayFor(date);
+  // A last day from an earlier school year would count nothing at all.
+  if (last.isBefore(first)) last = defaultLastSchoolDayFor(date);
+  return schoolDays(first, last, holidays: holidays);
+}
+
 /// A starting point for the school year that contains [date].
 List<HolidayPeriod> holidaysForSchoolYear(UtcDateTime date) {
   final first = schoolYearStart(date);
+  final official = officialSchoolCalendar(first);
+  if (official != null) return List.of(official.holidays);
   final second = first + 1;
   final easter = calculateEaster(second);
 
@@ -79,11 +172,33 @@ List<HolidayPeriod> holidaysForSchoolYear(UtcDateTime date) {
 /// The holidays a fresh installation starts with.
 List<HolidayPeriod> get defaultHolidays => holidaysForSchoolYear(now);
 
-/// The default last day of school: mid June of the second half of the year.
-///
-/// The one date here that really is a guess — the exact day is decided per
-/// school.
-UtcDateTime get defaultLastSchoolDay => _day(schoolYearStart(now) + 1, 6, 16);
+/// The default last day of school: the published one, or mid June of the
+/// second half of the year when no calendar for it has been typed in.
+UtcDateTime get defaultLastSchoolDay => defaultLastSchoolDayFor(now);
+
+UtcDateTime defaultLastSchoolDayFor(UtcDateTime date) {
+  final year = schoolYearStart(date);
+  return officialSchoolCalendar(year)?.lastDay ?? _day(year + 1, 6, 16);
+}
+
+/// Bumped whenever [officialSchoolCalendar] gains or corrects a year, so a
+/// stored state with older holidays is brought up to date once, see
+/// `SettingsState.schoolCalendarRevision`.
+const schoolCalendarRevision = 1;
+
+/// Whether stored [holidays] and [lastSchoolDay] belong to a school year that
+/// is over (or never had any), so the defaults of the current one should
+/// replace them.
+bool schoolYearSettingsOutdated(
+  Iterable<HolidayPeriod> holidays,
+  UtcDateTime? lastSchoolDay, {
+  required UtcDateTime now,
+}) {
+  final start = _day(schoolYearStart(now), 9, 1);
+  final lastIsOld = lastSchoolDay == null || lastSchoolDay.isBefore(start);
+  final holidaysAreOld = holidays.every((h) => h.end.isBefore(start));
+  return lastIsOld && holidaysAreOld;
+}
 
 /// The date of Easter Sunday.
 // https://en.wikipedia.org/wiki/Date_of_Easter#Meeus.27s_Julian_algorithm
@@ -167,8 +282,8 @@ class SchoolYear {
       {required UtcDateTime now}) {
     if (lastSchoolDay == null) return null;
     final today = UtcDateTime(now.year, now.month, now.day);
-    final last = UtcDateTime(
-        lastSchoolDay.year, lastSchoolDay.month, lastSchoolDay.day);
+    final last =
+        UtcDateTime(lastSchoolDay.year, lastSchoolDay.month, lastSchoolDay.day);
     if (last.isBefore(today)) return null;
     return Countdown(
       label: "Schulende",

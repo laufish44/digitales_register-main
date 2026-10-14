@@ -25,6 +25,7 @@ library;
 import 'dart:developer';
 import 'dart:io';
 
+import 'package:dr/background/windows_window.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// The Android channel new dashboard/message notifications are posted to.
@@ -50,8 +51,11 @@ class LocalNotificationService {
 
   /// Whether notifications can be shown on this platform at all.
   static bool get isSupported =>
-      Platform.isAndroid || Platform.isIOS || Platform.isWindows ||
-      Platform.isMacOS || Platform.isLinux;
+      Platform.isAndroid ||
+      Platform.isIOS ||
+      Platform.isWindows ||
+      Platform.isMacOS ||
+      Platform.isLinux;
 
   /// Prepares the platform plugin. Safe to call more than once.
   ///
@@ -77,9 +81,15 @@ class LocalNotificationService {
       );
       await _plugin.initialize(
         settings,
-        onDidReceiveNotificationResponse: (response) =>
-            onSelected?.call(response.payload),
+        onDidReceiveNotificationResponse: (response) {
+          onSelected?.call(response.payload);
+          // On the other platforms the system opens the app by itself. On
+          // Windows the click lands in whichever of our processes registered
+          // first - often the hidden background service.
+          if (Platform.isWindows) showMainApp();
+        },
       );
+      if (Platform.isWindows) registerNotificationActivator(_windowsGuid);
 
       if (Platform.isAndroid) {
         await _plugin

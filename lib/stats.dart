@@ -48,6 +48,34 @@ class GradeStats {
     return sum / weight;
   }
 
+  /// A subject's average the way the grades page shows it, and the original
+  /// app worked it out: weighted, then rounded to two decimals.
+  static double? subjectAverage(Iterable<GradeAll> grades) =>
+      weightedAverage(grades)?.roundToDouble();
+
+  /// The "Gesamtschnitt" of the grades page, worked out like the original app:
+  /// the plain mean of the (rounded) subject averages, leaving out the
+  /// subjects excluded in the settings. Every subject counts the same, however
+  /// many grades it has — unlike [weightedAverage] over all grades at once.
+  ///
+  /// Scaled by 100, or null when no subject has an average yet.
+  static double? overallAverage(
+    Iterable<Subject> subjects,
+    Semester semester, {
+    Iterable<String> ignored = const [],
+  }) {
+    final skip = {for (final name in ignored) name.toLowerCase()};
+    var sum = 0, n = 0;
+    for (final subject in subjects) {
+      if (skip.contains(subject.name.toLowerCase())) continue;
+      final average = subject.average(semester);
+      if (average == null) continue;
+      sum += average;
+      n++;
+    }
+    return n == 0 ? null : sum / n;
+  }
+
   /// The average per grade type ("Schularbeit", "Test", ...), scaled by 100.
   static Map<String, double> averageByType(Iterable<GradeAll> grades) {
     final byType = <String, List<GradeAll>>{};
@@ -361,6 +389,18 @@ class AbsenceStats {
     return SubjectAbsences(bySubject: result, unmatched: unknown);
   }
 
+  /// Lessons in a normal school week as the calendar shows them: for each
+  /// weekday the number of lessons it has most often, added up. Null when the
+  /// calendar has no lessons at all.
+  ///
+  /// The most common count rather than the fullest or an average week, so a
+  /// week with holidays or a school trip does not skew it.
+  static int? weeklyLessonsFromCalendar(CalendarState calendar) {
+    final typical = LessonCensus.typicalDays(calendar.days.values);
+    if (typical.isEmpty) return null;
+    return typical.values.fold<int>(0, (sum, day) => sum + day.lessons);
+  }
+
   /// The share [count] makes up of [total], as a percentage.
   static double share(int count, int total) =>
       total <= 0 ? 0 : count * 100 / total;
@@ -402,8 +442,8 @@ class AbsenceStats {
       Iterable<AbsenceGroup> absences) {
     final byDay = <UtcDateTime, List<LateArrival>>{};
     for (final arrival in lateArrivals(absences)) {
-      final day = UtcDateTime(
-          arrival.date.year, arrival.date.month, arrival.date.day);
+      final day =
+          UtcDateTime(arrival.date.year, arrival.date.month, arrival.date.day);
       byDay.putIfAbsent(day, () => []).add(arrival);
     }
     final days = byDay.entries
@@ -426,8 +466,9 @@ class AbsenceStats {
     required Iterable<AbsenceGroup> absences,
     required CalendarState calendar,
     required UtcDateTime now,
+    Iterable<UtcDateTime>? schoolDays,
   }) {
-    final census = LessonCensus.of(calendar, now: now);
+    final census = LessonCensus.of(calendar, now: now, schoolDays: schoolDays);
     final missed =
         missedBySubject(absences: absences, calendar: calendar).bySubject;
 
@@ -456,8 +497,9 @@ class AbsenceStats {
     required CalendarState calendar,
     required UtcDateTime now,
     required double limitPercentage,
+    Iterable<UtcDateTime>? schoolDays,
   }) {
-    final census = LessonCensus.of(calendar, now: now);
+    final census = LessonCensus.of(calendar, now: now, schoolDays: schoolDays);
     if (census.total <= 0) return null;
     return YearAbsenceBudget(
       missedLessons: missedLessons(absences),
@@ -522,15 +564,21 @@ class SubjectAbsenceLoad {
 
 /// How many lessons the school year has, in total and so far.
 ///
-/// Counted from the calendar, which is fetched for the whole year after
-/// logging in. A day the calendar has never seen simply contributes nothing,
-/// so the numbers are a floor rather than a guess.
+/// With the school days of the year known (the school calendar), every one of
+/// them counts: with its lessons from the calendar, or — for a day the
+/// calendar has not loaded (yet) — with what that weekday usually has. Days
+/// the calendar shows lessons on that are holidays in the school calendar do
+/// not count.
+///
+/// Without them only the calendar is counted, and a day it has never seen
+/// contributes nothing, so the numbers are a floor rather than a guess.
 class LessonCensus {
   const LessonCensus({
     required this.total,
     required this.elapsed,
     required this.weeks,
     required this.perSubject,
+    this.schoolDays,
   });
 
   /// Lessons in the whole school year.
@@ -539,11 +587,15 @@ class LessonCensus {
   /// Lessons up to and including today.
   final int elapsed;
 
-  /// How many weeks of school the calendar covers.
-  final int weeks;
+  /// How many weeks of school there are. Not necessarily whole: with the
+  /// school calendar this is its days of school divided by five.
+  final double weeks;
 
   /// Lessons per subject across the year.
   final Map<String, int> perSubject;
+
+  /// The days of school counted, when the school calendar was used.
+  final int? schoolDays;
 
   int get remaining => total - elapsed;
 
@@ -558,33 +610,121 @@ class LessonCensus {
   /// Lessons on an average school day, for turning hours into days.
   double get lessonsPerDay => lessonsPerWeek / 5;
 
-  static LessonCensus of(CalendarState calendar, {required UtcDateTime now}) {
-    final today = UtcDateTime(now.year, now.month, now.day);
-    var total = 0, elapsed = 0;
-    final perSubject = <String, int>{};
-    final mondays = <UtcDateTime>{};
+  static int _lessonsOf(CalendarDay day) =>
+      day.hours.fold<int>(0, (sum, hour) => sum + hour.length);
 
-    for (final day in calendar.days.values) {
-      final date = UtcDateTime(day.date.year, day.date.month, day.date.day);
-      var onThisDay = 0;
-      for (final hour in day.hours) {
-        onThisDay += hour.length;
+  static UtcDateTime _dayOf(UtcDateTime date) =>
+      UtcDateTime(date.year, date.month, date.day);
+
+  /// For each weekday (Monday = 1) the day that shows what it normally looks
+  /// like: among the days with lessons, those with the most common number of
+  /// lessons, and of those the latest (timetables change during the year).
+  static Map<int, TypicalDay> typicalDays(Iterable<CalendarDay> days) {
+    final byWeekday = <int, List<CalendarDay>>{};
+    for (final day in days) {
+      if (day.date.weekday > DateTime.friday) continue;
+      if (_lessonsOf(day) == 0) continue;
+      byWeekday.putIfAbsent(day.date.weekday, () => []).add(day);
+    }
+    final result = <int, TypicalDay>{};
+    for (final entry in byWeekday.entries) {
+      final frequency = <int, int>{};
+      for (final day in entry.value) {
+        frequency.update(_lessonsOf(day), (v) => v + 1, ifAbsent: () => 1);
+      }
+      final mostCommon = frequency.entries.reduce((a, b) =>
+          b.value > a.value || (b.value == a.value && b.key > a.key) ? b : a);
+      final latest = entry.value
+          .where((d) => _lessonsOf(d) == mostCommon.key)
+          .reduce((a, b) => b.date.isAfter(a.date) ? b : a);
+      final perSubject = <String, int>{};
+      for (final hour in latest.hours) {
         perSubject.update(hour.subject, (v) => v + hour.length,
             ifAbsent: () => hour.length);
       }
-      if (onThisDay == 0) continue;
-      total += onThisDay;
-      if (!date.isAfter(today)) elapsed += onThisDay;
-      mondays.add(toMonday(date));
+      result[entry.key] =
+          TypicalDay(lessons: mostCommon.key, perSubject: perSubject);
+    }
+    return result;
+  }
+
+  static LessonCensus of(
+    CalendarState calendar, {
+    required UtcDateTime now,
+    Iterable<UtcDateTime>? schoolDays,
+  }) {
+    final today = _dayOf(now);
+    var total = 0, elapsed = 0;
+    final perSubject = <String, int>{};
+
+    void count(int lessons, Map<String, int> subjects, UtcDateTime date) {
+      total += lessons;
+      if (!date.isAfter(today)) elapsed += lessons;
+      for (final entry in subjects.entries) {
+        perSubject.update(entry.key, (v) => v + entry.value,
+            ifAbsent: () => entry.value);
+      }
     }
 
+    Map<String, int> subjectsOf(CalendarDay day) {
+      final result = <String, int>{};
+      for (final hour in day.hours) {
+        result.update(hour.subject, (v) => v + hour.length,
+            ifAbsent: () => hour.length);
+      }
+      return result;
+    }
+
+    final days = schoolDays?.map(_dayOf).toList();
+    if (days != null && days.isNotEmpty) {
+      final known = {
+        for (final day in calendar.days.values) _dayOf(day.date): day,
+      };
+      final typical = typicalDays(calendar.days.values);
+      for (final date in days) {
+        final day = known[date];
+        final lessons = day == null ? 0 : _lessonsOf(day);
+        // A past day the calendar knows counts as it was, even if empty.
+        // Ahead, an empty day most likely just has not been filled in yet.
+        if (day != null && (lessons > 0 || !date.isAfter(today))) {
+          count(lessons, subjectsOf(day), date);
+        } else {
+          final usual = typical[date.weekday];
+          if (usual != null) count(usual.lessons, usual.perSubject, date);
+        }
+      }
+      return LessonCensus(
+        total: total,
+        elapsed: elapsed,
+        weeks: days.length / 5,
+        perSubject: perSubject,
+        schoolDays: days.length,
+      );
+    }
+
+    final mondays = <UtcDateTime>{};
+    for (final day in calendar.days.values) {
+      final lessons = _lessonsOf(day);
+      if (lessons == 0) continue;
+      final date = _dayOf(day.date);
+      count(lessons, subjectsOf(day), date);
+      mondays.add(toMonday(date));
+    }
     return LessonCensus(
       total: total,
       elapsed: elapsed,
-      weeks: mondays.length,
+      weeks: mondays.length.toDouble(),
       perSubject: perSubject,
     );
   }
+}
+
+/// What a weekday normally holds, see [LessonCensus.typicalDays].
+class TypicalDay {
+  const TypicalDay({required this.lessons, required this.perSubject});
+
+  final int lessons;
+  final Map<String, int> perSubject;
 }
 
 class YearAbsenceBudget {
@@ -616,9 +756,8 @@ class YearAbsenceBudget {
       census.total <= 0 ? 0 : missedLessons * 100 / census.total;
 
   /// What is left, as whole school days.
-  double get remainingDays => census.lessonsPerDay <= 0
-      ? 0
-      : remainingLessons / census.lessonsPerDay;
+  double get remainingDays =>
+      census.lessonsPerDay <= 0 ? 0 : remainingLessons / census.lessonsPerDay;
 
   /// What is left, as whole school weeks.
   double get remainingWeeks =>
@@ -697,8 +836,8 @@ class AbsenceMarks {
     required int hour,
   }) {
     final day = UtcDateTime(date.year, date.month, date.day);
-    final start = UtcDateTime(absence.startDate.year, absence.startDate.month,
-        absence.startDate.day);
+    final start = UtcDateTime(
+        absence.startDate.year, absence.startDate.month, absence.startDate.day);
     final end = UtcDateTime(
         absence.endDate.year, absence.endDate.month, absence.endDate.day);
     if (day.isBefore(start) || day.isAfter(end)) return false;
@@ -955,8 +1094,8 @@ class Agenda {
   static List<CalendarHour> lessonsOn(CalendarState calendar, UtcDateTime day) {
     final wanted = UtcDateTime(day.year, day.month, day.day);
     for (final calendarDay in calendar.days.values) {
-      final date = UtcDateTime(calendarDay.date.year, calendarDay.date.month,
-          calendarDay.date.day);
+      final date = UtcDateTime(
+          calendarDay.date.year, calendarDay.date.month, calendarDay.date.day);
       if (date == wanted) {
         return calendarDay.hours.toList()
           ..sort((a, b) => a.fromHour.compareTo(b.fromHour));

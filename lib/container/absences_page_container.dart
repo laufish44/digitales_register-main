@@ -42,6 +42,7 @@ class AbsencesPageContainer extends StatelessWidget {
           lastSchoolDay: vm.lastSchoolDay,
           calendar: vm.calendar,
           lessonTimes: vm.lessonTimes,
+          signatureName: vm.signatureName,
           onAddFutureAbsence: actions.absencesActions.addFutureAbsence.call,
           onRemoveFutureAbsence:
               actions.absencesActions.removeFutureAbsence.call,
@@ -68,6 +69,7 @@ class AbsencesPageViewModel {
         lastSchoolDay = state.settingsState.lastSchoolDay,
         calendar = state.calendarState,
         lessonTimes = LessonTimes.resolve(state.settingsState.lessonSchedule),
+        signatureName = state.config?.fullName,
         maxHour = _maxHour(state);
 
   final AbsencesState state;
@@ -77,6 +79,9 @@ class AbsencesPageViewModel {
   final UtcDateTime? lastSchoolDay;
   final CalendarState calendar;
   final List<LessonTime> lessonTimes;
+
+  /// Prefills the "Bestätigung" of an announcement or justification.
+  final String? signatureName;
 
   /// The highest lesson number to offer in the picker.
   ///
@@ -105,10 +110,23 @@ class AbsencesPageViewModel {
       other.weeklyLessons == weeklyLessons &&
       other.lastSchoolDay == lastSchoolDay &&
       other.calendar == calendar &&
+      other.signatureName == signatureName &&
+      BuiltList(other.lessonTimes) == BuiltList(lessonTimes) &&
       BuiltList(other.holidays) == BuiltList(holidays);
 
   @override
-  int get hashCode => Object.hash(state, noInternet, entryEnabled,
-      warningEnabled, warningThreshold, maxHour, budgetEnabled, weeklyLessons,
-      lastSchoolDay, calendar, BuiltList(holidays));
+  int get hashCode => Object.hash(
+      state,
+      noInternet,
+      entryEnabled,
+      warningEnabled,
+      warningThreshold,
+      maxHour,
+      budgetEnabled,
+      weeklyLessons,
+      lastSchoolDay,
+      calendar,
+      signatureName,
+      BuiltList(lessonTimes),
+      BuiltList(holidays));
 }

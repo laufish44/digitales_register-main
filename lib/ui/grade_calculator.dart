@@ -217,11 +217,11 @@ class _GradeCalculatorState extends State<GradeCalculator> {
         fullscreenDialog: true,
       ),
     );
-    if (result == null) {
+    if (result == null || result.isEmpty) {
       return;
     }
-    assert(grades.isEmpty);
-    assert(result.isNotEmpty);
+    // Adds to what is there, so a second import (another subject, say) and
+    // grades typed in by hand can be combined.
     setState(() {
       grades.addAll(result);
     });
@@ -246,6 +246,14 @@ class _GradeCalculatorState extends State<GradeCalculator> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Notenrechner"),
+        actions: [
+          if (!showGreeting)
+            IconButton(
+              icon: const Icon(Icons.save_alt),
+              tooltip: "Noten importieren",
+              onPressed: importGrades,
+            ),
+        ],
       ),
       body: AnimatedCrossFade(
         firstChild: Greeting(
@@ -409,7 +417,7 @@ class Greeting extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.all(32),
           child: Text(
-            "Um zu beginnen, importiere entweder bestehende Noten aus einem Fach\noder füge eine erste Note hinzu.",
+            "Um zu beginnen, importiere entweder bestehende Noten aus einem oder mehreren Fächern\noder füge eine erste Note hinzu.",
             style: Theme.of(context).textTheme.titleLarge,
             textAlign: TextAlign.center,
           ),
@@ -454,7 +462,10 @@ class Greeting extends StatelessWidget {
 class _ImportGrades extends StatefulWidget {
   final List<Subject> subjects;
 
-  const _ImportGrades({required this.subjects});
+  /// With one semester per year there is nothing to choose between.
+  final bool singleSemester;
+
+  const _ImportGrades({required this.subjects, required this.singleSemester});
   @override
   _ImportGradesState createState() => _ImportGradesState();
 }
@@ -462,128 +473,129 @@ class _ImportGrades extends StatefulWidget {
 class _ImportGradesContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return StoreConnection<AppState, AppActions, BuiltList<Subject>>(
-      connect: (state) => state.gradesState.subjects,
-      builder: (context, state, actions) => _ImportGrades(
-        subjects: state.toList(),
+    return StoreConnection<AppState, AppActions,
+        Tuple2<BuiltList<Subject>, bool>>(
+      connect: (state) => Tuple2(
+        state.gradesState.subjects,
+        state.settingsState.semestersPerYear == 1,
+      ),
+      builder: (context, vm, actions) => _ImportGrades(
+        subjects: vm.item1.toList(),
+        singleSemester: vm.item2,
       ),
     );
   }
 }
 
 class _ImportGradesState extends State<_ImportGrades> {
-  Subject? selectedSubject;
-  Semester? selectedSemester;
-  List<_Grade>? grades;
+  /// Ids of the picked subjects. Any number of them can be imported at once.
+  final selected = <int?>{};
+  late Semester semester =
+      widget.singleSemester ? Semester.first : Semester.all;
 
-  void _recalculateGrades() {
-    setState(() {
-      if (selectedSemester != null && selectedSubject != null) {
-        grades = selectedSubject!
-                .basicGrades(selectedSemester!)
-                ?.where((e) => !e.cancelled)
-                .map(
-                  (e) => _Grade(
-                    grade: e.grade!,
-                    weightPercentage: e.weightPercentage,
-                    description: "${selectedSubject!.name} · ${e.type}",
-                  ),
-                )
-                .toList() ??
-            [];
-      } else {
-        grades = [];
-      }
-    });
-  }
+  List<_Grade> _gradesOf(Subject subject) => [
+        for (final grade in subject.basicGrades(semester) ?? const <GradeAll>[])
+          if (!grade.cancelled && grade.grade != null)
+            _Grade(
+              grade: grade.grade!,
+              weightPercentage: grade.weightPercentage,
+              description: "${subject.name} · ${grade.type}",
+            ),
+      ];
+
+  List<_Grade> get _picked => [
+        for (final subject in widget.subjects)
+          if (selected.contains(subject.id)) ..._gradesOf(subject),
+      ];
 
   @override
   Widget build(BuildContext context) {
+    final picked = _picked;
+    final allSelected = widget.subjects.isNotEmpty &&
+        widget.subjects.every((s) => selected.contains(s.id));
     return Scaffold(
       appBar: AppBar(
         title: const Text("Noten importieren"),
+        actions: [
+          TextButton(
+            onPressed: widget.subjects.isEmpty
+                ? null
+                : () => setState(() {
+                      if (allSelected) {
+                        selected.clear();
+                      } else {
+                        selected.addAll(widget.subjects.map((s) => s.id));
+                      }
+                    }),
+            child: Text(allSelected ? "Keine" : "Alle"),
+          ),
+        ],
       ),
-      body: Column(
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 96),
         children: [
-          DropdownButton<Subject>(
-            items: [
-              for (final subject in widget.subjects)
-                DropdownMenuItem(
-                  value: subject,
-                  child: Text(subject.name),
-                ),
-            ],
-            value: selectedSubject,
-            hint: const Text("Fach auswählen"),
-            onChanged: (subject) {
-              setState(() {
-                selectedSubject = subject;
-              });
-              _recalculateGrades();
-            },
-          ),
-          const SizedBox(
-            height: 16,
-          ),
-          RadioListTile<Semester>(
-            title: const Text("Erstes Semester"),
-            value: Semester.first,
-            groupValue: selectedSemester,
-            onChanged: (value) {
-              setState(() {
-                selectedSemester = value;
-              });
-              _recalculateGrades();
-            },
-          ),
-          RadioListTile<Semester>(
-            title: const Text("Zweites Semester"),
-            value: Semester.second,
-            groupValue: selectedSemester,
-            onChanged: (value) {
-              setState(() {
-                selectedSemester = value;
-              });
-              _recalculateGrades();
-            },
-          ),
-          RadioListTile<Semester>(
-            title: const Text("Beide Semester"),
-            value: Semester.all,
-            groupValue: selectedSemester,
-            onChanged: (value) {
-              setState(() {
-                selectedSemester = value;
-              });
-              _recalculateGrades();
-            },
-          ),
-          const SizedBox(
-            height: 16,
-          ),
-          Center(
-            child: ElevatedButton(
-              onPressed: selectedSemester != null &&
-                      selectedSubject != null &&
-                      grades!.isNotEmpty
-                  ? () {
-                      Navigator.pop(context, grades);
-                    }
-                  : null,
-              child: const Text("Importieren"),
-            ),
-          ),
-          if (selectedSemester != null &&
-              selectedSubject != null &&
-              grades!.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                "Für dieses Fach sind in diesem Zeitraum keine Noten verfügbar",
-                style: TextStyle(color: Colors.red),
+          if (!widget.singleSemester)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SegmentedButton<Semester>(
+                segments: [
+                  ButtonSegment(
+                    value: Semester.first,
+                    label: const Text("1. Semester"),
+                  ),
+                  ButtonSegment(
+                    value: Semester.second,
+                    label: const Text("2. Semester"),
+                  ),
+                  ButtonSegment(
+                    value: Semester.all,
+                    label: const Text("Beide"),
+                  ),
+                ],
+                selected: {semester},
+                onSelectionChanged: (value) =>
+                    setState(() => semester = value.single),
               ),
             ),
+          if (widget.subjects.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text("Noch keine Noten geladen."),
+            ),
+          for (final subject in widget.subjects)
+            Builder(builder: (context) {
+              final count = _gradesOf(subject).length;
+              return CheckboxListTile(
+                value: selected.contains(subject.id),
+                title: Text(subject.name),
+                subtitle: Text(
+                  count == 0
+                      ? "Keine Noten in diesem Zeitraum"
+                      : count == 1
+                          ? "1 Note"
+                          : "$count Noten",
+                ),
+                onChanged: (value) => setState(() {
+                  if (value == true) {
+                    selected.add(subject.id);
+                  } else {
+                    selected.remove(subject.id);
+                  }
+                }),
+              );
+            }),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: picked.isEmpty ? null : () => Navigator.pop(context, picked),
+        icon: const Icon(Icons.save_alt),
+        label: Text(
+          picked.isEmpty
+              ? "Importieren"
+              : picked.length == 1
+                  ? "1 Note importieren"
+                  : "${picked.length} Noten importieren",
+        ),
       ),
     );
   }

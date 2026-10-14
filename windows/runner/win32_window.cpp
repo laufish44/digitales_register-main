@@ -8,6 +8,16 @@ namespace {
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
+// Marks the visible window. The hidden window of the background service has
+// the same class and title, so this is how the second instance of the app and
+// a click on a notification find the right one (lib/background/windows_window.dart).
+constexpr const wchar_t kMainWindowProperty[] = L"DigitalesRegisterMainWindow";
+
+// Below this the layout falls apart: the sidebar and the page start to overlap
+// and the app bars run out of room. In logical pixels.
+constexpr int kMinimumWidth = 400;
+constexpr int kMinimumHeight = 500;
+
 // The number of Win32Window objects that currently exist.
 static int g_active_window_count = 0;
 
@@ -140,6 +150,8 @@ bool Win32Window::CreateAndShow(const std::wstring& title,
 
   if (hidden) {
     ShowWindow(window, SW_HIDE);
+  } else {
+    SetPropW(window, kMainWindowProperty, reinterpret_cast<HANDLE>(1));
   }
 
   return OnCreate();
@@ -150,6 +162,18 @@ LRESULT CALLBACK Win32Window::WndProc(HWND const window,
                                       UINT const message,
                                       WPARAM const wparam,
                                       LPARAM const lparam) noexcept {
+  if (message == WM_GETMINMAXINFO) {
+    // Answered here: it arrives before WM_NCCREATE, and nothing further down
+    // has an opinion about it.
+    auto* info = reinterpret_cast<MINMAXINFO*>(lparam);
+    const double scale_factor =
+        FlutterDesktopGetDpiForMonitor(
+            MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST)) /
+        96.0;
+    info->ptMinTrackSize.x = Scale(kMinimumWidth, scale_factor);
+    info->ptMinTrackSize.y = Scale(kMinimumHeight, scale_factor);
+    return 0;
+  }
   if (message == WM_NCCREATE) {
     auto window_struct = reinterpret_cast<CREATESTRUCT*>(lparam);
     SetWindowLongPtr(window, GWLP_USERDATA,
@@ -185,6 +209,7 @@ Win32Window::MessageHandler(HWND hwnd,
                             LPARAM const lparam) noexcept {
   switch (message) {
     case WM_DESTROY:
+      RemovePropW(hwnd, kMainWindowProperty);
       window_handle_ = nullptr;
       Destroy();
       if (quit_on_close_) {

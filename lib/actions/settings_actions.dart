@@ -78,4 +78,7 @@ abstract class SettingsActions extends ReduxActions {
   abstract final ActionDispatcher<BuiltList<LessonTime>> setLessonSchedule;
 
   abstract final ActionDispatcher<bool> setPrefetchWholeCalendar;
+
+  /// 1 or 2.
+  abstract final ActionDispatcher<int> setSemestersPerYear;
 }

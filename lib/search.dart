@@ -183,7 +183,7 @@ class Search {
       if (wanted(SearchCategory.subject)) {
         final score = scoreMatch(subject.name, trimmed);
         if (score != null) {
-          final average = GradeStats.weightedAverage(
+          final average = GradeStats.subjectAverage(
               subject.basicGrades(state.gradesState.semester) ??
                   const <GradeAll>[]);
           results.add(SearchResult(
@@ -198,9 +198,8 @@ class Search {
       }
 
       if (wanted(SearchCategory.grade)) {
-        for (final grade
-            in subject.basicGrades(state.gradesState.semester) ??
-                const <GradeAll>[]) {
+        for (final grade in subject.basicGrades(state.gradesState.semester) ??
+            const <GradeAll>[]) {
           final score = _best([
             scoreMatch(grade.type, trimmed),
             _damp(scoreMatch(subject.name, trimmed)),

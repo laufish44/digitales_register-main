@@ -42,6 +42,19 @@ String _absenceDate(UtcDateTime date) =>
     "${date.month.toString().padLeft(2, "0")}-"
     "${date.day.toString().padLeft(2, "0")}";
 
+/// Local midnight of [date] as JSON turns a JavaScript `Date` into it.
+String _absenceDateObject(UtcDateTime date) =>
+    DateTime(date.year, date.month, date.day).toUtc().toIso8601String();
+
+/// The message of an error the server answered with instead of failing the
+/// request, or null when there is none.
+String? _serverError(dynamic response) {
+  final map = getMap(response);
+  if (map == null || map["error"] == null) return null;
+  final message = getString(map["message"]);
+  return message == null || message.isEmpty ? "${map["error"]}" : message;
+}
+
 Future<void> _addFutureAbsence(
     MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
     ActionHandler next,
@@ -52,20 +65,29 @@ Future<void> _addFutureAbsence(
   final payload = action.payload;
   await api.actions.absencesActions.setSubmitting(true);
   try {
+    // The same object the web app posts (`saveFutureAbsence`): the picked days
+    // both as date objects and as `YYYY-MM-DD`, the lesson numbers, and the
+    // reason with its signature. Without the last two nothing gets saved.
     final dynamic response = await wrapper.send(
       "api/student/dashboard/absence_future",
       args: {
         "futureAbsence": <String, Object?>{
+          "startDateObject": _absenceDateObject(payload.startDate),
+          "startTime": payload.startHour,
+          "endDateObject": _absenceDateObject(payload.endDate),
+          "endTime": payload.endHour,
+          "reason": payload.reason,
+          "reason_signature": payload.signature,
           "startDate": _absenceDate(payload.startDate),
           "endDate": _absenceDate(payload.endDate),
-          "startTime": payload.startHour,
-          "endTime": payload.endHour,
-          if (payload.note != null) "note": payload.note,
         },
       },
     );
-    if (response == null) {
-      showSnackBar("Die Absenz konnte nicht eingetragen werden");
+    final error = _serverError(response);
+    if (response == null || error != null) {
+      showSnackBar(error == null
+          ? "Die Absenz konnte nicht eingetragen werden"
+          : "Die Absenz konnte nicht eingetragen werden: $error");
       return;
     }
     showSnackBar("Absenz vorentschuldigt");
@@ -97,8 +119,11 @@ Future<void> _removeFutureAbsence(
       "api/student/dashboard/remove_absence_future",
       args: {"futureAbsence": json.decode(raw)},
     );
-    if (response == null) {
-      showSnackBar("Die Absenz konnte nicht entfernt werden");
+    final error = _serverError(response);
+    if (response == null || error != null) {
+      showSnackBar(error == null
+          ? "Die Absenz konnte nicht entfernt werden"
+          : "Die Absenz konnte nicht entfernt werden: $error");
       return;
     }
     showSnackBar("Vorentschuldigung entfernt");
@@ -156,8 +181,11 @@ Future<void> _justifyAbsence(
       "api/student/dashboard/absence_reason",
       args: {"absenceGroup": group},
     );
-    if (response == null) {
-      showSnackBar("Die Entschuldigung konnte nicht gespeichert werden");
+    final error = _serverError(response);
+    if (response == null || error != null) {
+      showSnackBar(error == null
+          ? "Die Entschuldigung konnte nicht gespeichert werden"
+          : "Die Entschuldigung konnte nicht gespeichert werden: $error");
       return;
     }
     showSnackBar("Entschuldigung gespeichert");

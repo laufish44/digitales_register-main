@@ -401,6 +401,15 @@ abstract class SettingsState
   /// having to page through the calendar by hand.
   bool get prefetchWholeCalendar;
 
+  /// 2, or 1 for schools that grade the whole year at once. With 1 the grades
+  /// only ever show the first semester and there is nothing to switch.
+  int get semestersPerYear;
+
+  /// Which revision of the built-in school calendar the stored [holidays] and
+  /// [lastSchoolDay] were last brought up to, see `schoolCalendarRevision` in
+  /// school_year.dart. Null in a state stored before it existed.
+  int? get schoolCalendarRevision;
+
   factory SettingsState([Function(SettingsStateBuilder b)? updates]) =
       _$SettingsState;
   SettingsState._();
@@ -456,11 +465,13 @@ abstract class SettingsState
       ..dashboardWidgets = ListBuilder(defaultDashboardWidgets)
       ..gradeTargets = MapBuilder<String, int>()
       ..holidays = ListBuilder(defaultHolidays)
+      ..lastSchoolDay = defaultLastSchoolDay
       ..showSchoolYearCountdown = true
       ..weeklyLessons = 0
       ..showAbsenceBudget = true
       ..lessonSchedule = ListBuilder(defaultLessonTimes)
-      ..prefetchWholeCalendar = true;
+      ..prefetchWholeCalendar = true
+      ..semestersPerYear = 2;
   }
 }
 

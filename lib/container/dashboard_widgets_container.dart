@@ -69,6 +69,7 @@ class _WidgetBoardViewModel {
         absenceLimitPercentage: settings.absenceWarningThreshold,
         weeklyLessons: settings.weeklyLessons,
         lessonTimes: LessonTimes.resolve(settings.lessonSchedule),
+        ignoredForAverage: settings.ignoreForGradesAverage.toList(),
       ),
       loggedIn: state.loginState.loggedIn,
       hasAbsences: state.absencesState.statistic != null,
@@ -123,6 +124,9 @@ class _WidgetBoardViewModel {
       other.data.lastSchoolDay == data.lastSchoolDay &&
       other.data.absenceLimitPercentage == data.absenceLimitPercentage &&
       other.data.weeklyLessons == data.weeklyLessons &&
+      BuiltList(other.data.ignoredForAverage) ==
+          BuiltList(data.ignoredForAverage) &&
+      BuiltList(other.data.lessonTimes) == BuiltList(data.lessonTimes) &&
       BuiltList(other.data.holidays) == BuiltList(data.holidays);
 
   static bool _sameConfigs(

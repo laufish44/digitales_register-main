@@ -47,6 +47,7 @@ class DashboardWidgetData {
     required this.absenceLimitPercentage,
     required this.weeklyLessons,
     required this.lessonTimes,
+    this.ignoredForAverage = const [],
   });
 
   final UtcDateTime now;
@@ -62,12 +63,16 @@ class DashboardWidgetData {
 
   /// When the lessons of a day run, already resolved against the calendar.
   final List<LessonTime> lessonTimes;
+
+  /// Subjects left out of the overall grade average (settings).
+  final List<String> ignoredForAverage;
 }
 
 /// Builds the card for [config], or nothing when the type is unknown.
 Widget buildDashboardWidget({
   required DashboardWidgetConfig config,
   required DashboardWidgetData data,
+
   /// Opens the calendar on a given day, not just "somewhere".
   void Function(UtcDateTime date)? onOpenCalendarAt,
   VoidCallback? onOpenAbsences,
@@ -417,12 +422,17 @@ class _GradesCard extends StatelessWidget {
     for (final subject in data.grades.subjects) {
       final grades = subject.basicGrades(semester) ?? const <GradeAll>[];
       everything.addAll(grades);
-      final average = GradeStats.weightedAverage(grades);
+      final average = GradeStats.subjectAverage(grades);
       if (average != null) perSubject.add(MapEntry(subject.name, average));
     }
     perSubject.sort((a, b) => a.value.compareTo(b.value));
 
-    final overall = GradeStats.weightedAverage(everything);
+    // The same number as the grades page, not a pool of all grades.
+    final overall = GradeStats.overallAverage(
+      data.grades.subjects,
+      semester,
+      ignored: data.ignoredForAverage,
+    );
     final trend = GradeStats.trendPerMonth(everything);
 
     var worst = perSubject;
@@ -525,15 +535,16 @@ class _AbsencesCard extends StatelessWidget {
               ),
               subtitle: config.compact
                   ? null
-                  : Text("${AbsenceStats.missedLessons(data.absences.absences)
-                      .round()} von rund "
+                  : Text(
+                      "${AbsenceStats.missedLessons(data.absences.absences).round()} von rund "
                       "${budget.estimatedTotalLessons.round()} Stunden "
                       "versäumt"),
             ),
           if (open > 0)
             ListTile(
               dense: true,
-              leading: Icon(Icons.warning_amber, color: theme.colorScheme.error),
+              leading:
+                  Icon(Icons.warning_amber, color: theme.colorScheme.error),
               title: Text(open == 1
                   ? "Eine Absenz wartet auf eine Entschuldigung"
                   : "$open Absenzen warten auf eine Entschuldigung"),
@@ -569,9 +580,7 @@ class _HolidaysCard extends StatelessWidget {
           ListTile(
             dense: true,
             title: Text(countdown.label),
-            subtitle: config.compact
-                ? null
-                : Text(_formatDate(countdown.date)),
+            subtitle: config.compact ? null : Text(_formatDate(countdown.date)),
             trailing: Text(
               countdown.daysLabel,
               style: const TextStyle(fontWeight: FontWeight.bold),
@@ -613,14 +622,13 @@ class _MessagesCard extends StatelessWidget {
       emptyText: "Keine ungelesenen Mitteilungen.",
       trailing: total == 0
           ? null
-          : Text("$total",
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+          : Text("$total", style: const TextStyle(fontWeight: FontWeight.bold)),
       children: [
         for (final message in unread)
           ListTile(
             dense: true,
-            title: Text(message.subject, maxLines: 1,
-                overflow: TextOverflow.ellipsis),
+            title: Text(message.subject,
+                maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: config.compact ? null : Text(message.fromName),
             onTap: onOpenMessages,
           ),

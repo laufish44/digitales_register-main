@@ -7,9 +7,9 @@
 ; The result lands in "installation files\Windows\".
 
 #define AppName "Digitales Register"
-#define AppVersion "8.5.0"
-#define AppPublisher "Michael Debertol"
-#define AppURL "https://github.com/miDeb/digitales_register"
+#define AppVersion "8.6.0"
+#define AppPublisher "Laurin Feichter"
+#define AppURL "https://github.com/laufish44/digitales_register-main"
 #define AppExeName "digitales_register.exe"
 ; Relative to this script: <repo>/windows/installer -> <repo>
 #define RepoDir ".."

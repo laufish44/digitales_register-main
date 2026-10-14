@@ -64,6 +64,7 @@ class StatisticsPage extends StatelessWidget {
     required this.holidays,
     required this.lastSchoolDay,
     required this.lessonTimes,
+    this.ignoredForAverage = const [],
     required this.loading,
   });
 
@@ -75,6 +76,7 @@ class StatisticsPage extends StatelessWidget {
   final List<HolidayPeriod> holidays;
   final UtcDateTime? lastSchoolDay;
   final List<LessonTime> lessonTimes;
+  final List<String> ignoredForAverage;
   final bool loading;
 
   @override
@@ -89,12 +91,14 @@ class StatisticsPage extends StatelessWidget {
               padding: EdgeInsets.all(16),
               child: LinearProgressIndicator(),
             ),
-          _GradeStatistics(grades: grades),
+          _GradeStatistics(grades: grades, ignored: ignoredForAverage),
           _AbsenceStatistics(
             absences: absences,
             calendar: calendar,
             limitPercentage: limitPercentage,
             lessonTimes: lessonTimes,
+            holidays: holidays,
+            lastSchoolDay: lastSchoolDay,
           ),
           _EntryStatistics(dashboard: dashboard, calendar: calendar),
           _YearStatistics(
@@ -281,15 +285,19 @@ class _Row extends StatelessWidget {
       dense: true,
       title: Text(label),
       subtitle: hint == null ? null : Text(hint!),
-      trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+      trailing:
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
     );
   }
 }
 
 class _GradeStatistics extends StatelessWidget {
-  const _GradeStatistics({required this.grades});
+  const _GradeStatistics({required this.grades, this.ignored = const []});
 
   final GradesState grades;
+
+  /// Subjects left out of the overall average, as on the grades page.
+  final List<String> ignored;
 
   String _grade(double scaledByHundred) =>
       gradeAverageFormat.format(scaledByHundred / 100);
@@ -305,15 +313,20 @@ class _GradeStatistics extends StatelessWidget {
       final subjectGrades = subject.basicGrades(semester) ?? const <GradeAll>[];
       final counting = subjectGrades.where(countsTowardsAverage).toList();
       all.addAll(subjectGrades);
-      final average = GradeStats.weightedAverage(subjectGrades);
+      final average = GradeStats.subjectAverage(subjectGrades);
       if (average != null) {
         perSubject[subject.name] = average;
         countPerSubject[subject.name] = counting.length;
       }
     }
 
-    final overall = GradeStats.weightedAverage(all);
-    if (overall == null) {
+    // The headline number matches the grades page (mean of the subject
+    // averages). Pooling every grade gives a different figure, so it is shown
+    // as well, but labelled as what it is.
+    final overall =
+        GradeStats.overallAverage(grades.subjects, semester, ignored: ignored);
+    final pooled = GradeStats.weightedAverage(all);
+    if (pooled == null) {
       return const _Section(
         title: "Noten",
         children: [],
@@ -339,7 +352,16 @@ class _GradeStatistics extends StatelessWidget {
     return _Section(
       title: "Noten",
       children: [
-        _Row(label: "Gesamtschnitt", value: _grade(overall)),
+        _Row(
+          label: "Gesamtschnitt",
+          value: overall == null ? "/" : _grade(overall),
+          hint: "Schnitt der Fächerschnitte, wie in der Notenübersicht",
+        ),
+        _Row(
+          label: "Schnitt aller Noten",
+          value: _grade(pooled),
+          hint: "Jede Note nach ihrem Gewicht, egal aus welchem Fach",
+        ),
         _Row(label: "Anzahl Noten", value: "$countingTotal"),
         _Row(label: "Beste Note", value: _grade(spread.best)),
         _Row(label: "Schlechteste Note", value: _grade(spread.worst)),
@@ -381,8 +403,9 @@ class _GradeStatistics extends StatelessWidget {
         if (perMonth.length > 1) ...[
           const Divider(),
           const _SubHeading("Noten pro Monat"),
-          for (final entry in (perMonth.entries.toList()
-            ..sort((a, b) => a.key.compareTo(b.key))))
+          for (final entry
+              in (perMonth.entries.toList()
+                ..sort((a, b) => a.key.compareTo(b.key))))
             _BarRow(
               label: _monthLabel(entry.key),
               count: entry.value,
@@ -400,12 +423,16 @@ class _AbsenceStatistics extends StatelessWidget {
     required this.calendar,
     required this.limitPercentage,
     required this.lessonTimes,
+    this.holidays = const [],
+    this.lastSchoolDay,
   });
 
   final AbsencesState absences;
   final CalendarState calendar;
   final int limitPercentage;
   final List<LessonTime> lessonTimes;
+  final List<HolidayPeriod> holidays;
+  final UtcDateTime? lastSchoolDay;
 
   @override
   Widget build(BuildContext context) {
@@ -421,13 +448,20 @@ class _AbsenceStatistics extends StatelessWidget {
 
     final missed = AbsenceStats.missedLessons(groups);
     final percentage = AbsenceStats.missedPercentage(statistic);
-    // Counted from the calendar rather than worked back out of the register's
-    // percentage, which is what makes "until the end of the year" possible.
+    // Counted on the days of the school calendar with the lessons from the
+    // register's calendar, rather than worked back out of the register's
+    // percentage — which is what makes "until the end of the year" possible.
+    final days = schoolDaysOfYear(
+      now,
+      holidays: holidays,
+      lastSchoolDay: lastSchoolDay,
+    );
     final year = AbsenceStats.yearBudget(
       absences: groups,
       calendar: calendar,
       now: now,
       limitPercentage: limitPercentage.toDouble(),
+      schoolDays: days,
     );
     final budget = AbsenceStats.budget(
       statistic: statistic,
@@ -440,6 +474,7 @@ class _AbsenceStatistics extends StatelessWidget {
       absences: groups,
       calendar: calendar,
       now: now,
+      schoolDays: days,
     );
 
     final byWeekday = AbsenceStats.missedByWeekday(groups);
@@ -533,7 +568,10 @@ class _AbsenceStatistics extends StatelessWidget {
           _Row(
             label: "Stunden bisher / im Jahr",
             value: "${year.census.elapsed} / ${year.census.total}",
-            hint: "aus dem Stundenplan gezählt, nicht geschätzt",
+            hint: year.census.schoolDays == null
+                ? "aus dem Stundenplan gezählt, nicht geschätzt"
+                : "${year.census.schoolDays} Schultage laut Schulkalender, "
+                    "Stunden aus dem Stundenplan",
           ),
         ] else if (budget != null) ...[
           const Divider(),
@@ -561,7 +599,8 @@ class _AbsenceStatistics extends StatelessWidget {
             _Row(
               label: _formatDayLong(day.date),
               value: "${day.minutes} min",
-              hint: day.lessons == 1 ? null : "${day.lessons} Stunden betroffen",
+              hint:
+                  day.lessons == 1 ? null : "${day.lessons} Stunden betroffen",
             ),
           if (lateDays.length > 12)
             _Row(
@@ -592,8 +631,9 @@ class _AbsenceStatistics extends StatelessWidget {
                 : "Am häufigsten fehlst du in der "
                     "${LessonTimes.label(lessonTimes, worstLesson)}",
           ),
-          for (final entry in (byLesson.entries.toList()
-            ..sort((a, b) => a.key.compareTo(b.key))))
+          for (final entry
+              in (byLesson.entries.toList()
+                ..sort((a, b) => a.key.compareTo(b.key))))
             _BarRow(
               label: LessonTimes.label(lessonTimes, entry.key),
               count: entry.value,
@@ -609,8 +649,9 @@ class _AbsenceStatistics extends StatelessWidget {
                 ? null
                 : "Am häufigsten am ${_weekdayNames[worstWeekday]}",
           ),
-          for (final entry in (byWeekday.entries.toList()
-            ..sort((a, b) => a.key.compareTo(b.key))))
+          for (final entry
+              in (byWeekday.entries.toList()
+                ..sort((a, b) => a.key.compareTo(b.key))))
             _BarRow(
               label: _weekdayNames[entry.key] ?? "?",
               count: entry.value,
@@ -641,8 +682,9 @@ class _AbsenceStatistics extends StatelessWidget {
             ),
           const Divider(height: 8),
           const _SubHeading("Nach Fach, roh"),
-          for (final entry in (bySubject.bySubject.entries.toList()
-            ..sort((a, b) => b.value.compareTo(a.value))))
+          for (final entry
+              in (bySubject.bySubject.entries.toList()
+                ..sort((a, b) => b.value.compareTo(a.value))))
             _BarRow(
               label: entry.key,
               count: entry.value,
@@ -658,8 +700,9 @@ class _AbsenceStatistics extends StatelessWidget {
         if (byMonth.length > 1) ...[
           const Divider(),
           const _SubHeading("Nach Monat"),
-          for (final entry in (byMonth.entries.toList()
-            ..sort((a, b) => a.key.compareTo(b.key))))
+          for (final entry
+              in (byMonth.entries.toList()
+                ..sort((a, b) => a.key.compareTo(b.key))))
             _BarRow(
               label: _monthLabel(entry.key),
               count: entry.value,
@@ -707,8 +750,9 @@ class _EntryStatistics extends StatelessWidget {
         if (perSubject.isNotEmpty) ...[
           const Divider(),
           const _SubHeading("Nach Fach"),
-          for (final entry in (perSubject.entries.toList()
-            ..sort((a, b) => b.value.compareTo(a.value))))
+          for (final entry
+              in (perSubject.entries.toList()
+                ..sort((a, b) => b.value.compareTo(a.value))))
             _BarRow(
               label: entry.key,
               count: entry.value,
@@ -732,8 +776,7 @@ class _YearStatistics extends StatelessWidget {
     final lastDay = SchoolYear.lastDay(lastSchoolDay, now: now);
     final schoolDaysLeft = lastSchoolDay == null
         ? null
-        : SchoolYear.schoolDaysBetween(now, lastSchoolDay!,
-            holidays: holidays);
+        : SchoolYear.schoolDaysBetween(now, lastSchoolDay!, holidays: holidays);
 
     return _Section(
       title: "Schuljahr",
@@ -745,8 +788,7 @@ class _YearStatistics extends StatelessWidget {
             value: nextHolidays.daysLabel,
             hint: nextHolidays.ongoing ? "Läuft gerade" : "Nächste Ferien",
           ),
-        if (lastDay != null)
-          _Row(label: "Schulende", value: lastDay.daysLabel),
+        if (lastDay != null) _Row(label: "Schulende", value: lastDay.daysLabel),
         if (schoolDaysLeft != null && schoolDaysLeft > 0) ...[
           _Row(label: "Schultage übrig", value: "$schoolDaysLeft"),
           _Row(

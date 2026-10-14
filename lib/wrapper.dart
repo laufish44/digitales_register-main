@@ -60,6 +60,17 @@ typedef AddNetworkProtocolItem = void Function(NetworkProtocolItem item);
 
 class UnexpectedLogoutException implements Exception {}
 
+/// The register's start page was not what came back — see
+/// [Wrapper.parseConfig].
+class ConfigUnavailableException implements Exception {
+  const ConfigUnavailableException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => "ConfigUnavailableException: $reason";
+}
+
 class Wrapper {
   final cookieJar = DefaultCookieJar();
   final Dio dio = Dio();
@@ -185,17 +196,34 @@ class Wrapper {
     }
     if (getBool(response["loggedIn"]) ?? false) {
       log("login succeeded");
-      lastInteraction = DateTime.now();
-      loggedInCompleter.complete(true);
       this.user = user;
       this.pass = pass;
       error = null;
-      await _loadConfig().then((_) {
-        _serverLogoutTime =
-            DateTime.now().add(Duration(seconds: config.autoLogoutSeconds));
-        _updateLogout();
-        onConfigLoaded!();
-      });
+
+      // The login can succeed and the next page still not be the register: a
+      // wifi that redirects to its own sign-in page, a maintenance page, or a
+      // session cookie that did not stick. That used to surface as
+      // "FormatException: Invalid radix-10 number ... ml>" on the error screen
+      // — the parser found no user id and read from the page's 13th character
+      // on. Now it is treated as what it is: no usable connection.
+      try {
+        config = await _loadConfigWithRetry();
+      } catch (e) {
+        log("login succeeded but the register page could not be read",
+            error: e);
+        loggedInCompleter.complete(false);
+        noInternet = true;
+        error = "Das Register war nicht erreichbar. Bist du mit einem WLAN "
+            "verbunden, das erst eine Anmeldung im Browser verlangt?";
+        return null;
+      }
+
+      lastInteraction = DateTime.now();
+      loggedInCompleter.complete(true);
+      _serverLogoutTime =
+          DateTime.now().add(Duration(seconds: config.autoLogoutSeconds));
+      _updateLogout();
+      onConfigLoaded!();
     } else {
       log("login did not succeed");
       loggedInCompleter.complete(false);
@@ -281,13 +309,43 @@ class Wrapper {
     return response;
   }
 
-  Future<void> _loadConfig() async {
-    final source = (await dio.get<String>(baseAddress)).data;
-    config = parseConfig(source!);
+  /// Fetches and parses the register's start page, once more after a short
+  /// pause if the first answer was not the register.
+  ///
+  /// The retry covers a session cookie that needs a moment after the login; a
+  /// captive portal or maintenance page fails twice and is reported.
+  Future<Config> _loadConfigWithRetry() async {
+    try {
+      return await _loadConfig();
+    } on ConfigUnavailableException catch (e) {
+      log("register page not recognised, retrying once", error: e);
+      await Future<void>.delayed(const Duration(seconds: 1));
+      return _loadConfig();
+    }
   }
 
+  Future<Config> _loadConfig() async {
+    final source = (await dio.get<String>(baseAddress)).data;
+    if (source == null) {
+      throw const ConfigUnavailableException("empty response");
+    }
+    return parseConfig(source);
+  }
+
+  /// Reads what the app needs from the register's start page.
+  ///
+  /// Throws [ConfigUnavailableException] when the page is not the register —
+  /// the user id is the one value without which nothing works, so its absence
+  /// is the test. Everything else falls back to a harmless default rather than
+  /// failing the whole login over a missing profile picture.
   static Config parseConfig(String source) {
     final id = _readUserId(source);
+    if (id == null) {
+      throw ConfigUnavailableException(
+        "no user id on the page (starts with: "
+        "${source.substring(0, source.length < 60 ? source.length : 60)})",
+      );
+    }
     final fullName = _readFullName(source);
     final imgSource = _readImgSource(source);
     final autoLogout = _readAutoLogoutSeconds(source);
@@ -304,6 +362,21 @@ class Wrapper {
     );
   }
 
+  /// The text between [marker] and the next [terminator], or null when the
+  /// marker is not on the page at all.
+  ///
+  /// `indexOf` returns -1 for a missing marker, and the old code added the
+  /// marker's length to that — reading from a fixed offset into whatever page
+  /// it got. This is the one place that check now lives.
+  static String? _valueAfter(String source, String marker, String terminator) {
+    final start = source.indexOf(marker);
+    if (start < 0) return null;
+    final from = start + marker.length;
+    final end = source.indexOf(terminator, from);
+    if (end < 0) return null;
+    return source.substring(from, end).trim();
+  }
+
   static bool _readIsStudentOrParent(String source) {
     return !source.contains("var isStudentOrParent=0;");
   }
@@ -317,40 +390,40 @@ class Wrapper {
     }
   }
 
+  /// The register logs a session out after this long without activity; used
+  /// when the page does not say.
+  static const _defaultAutoLogoutSeconds = 300;
+
   static int _readAutoLogoutSeconds(String source) {
-    final substringFromId = source.substring(
-        source.indexOf("auto_logout_seconds: ") +
-            "auto_logout_seconds: ".length);
-    return int.parse(
-        substringFromId.substring(0, substringFromId.indexOf(",")).trim());
+    final raw = _valueAfter(source, "auto_logout_seconds: ", ",");
+    return int.tryParse(raw ?? "") ?? _defaultAutoLogoutSeconds;
   }
 
-  static int _readUserId(String source) {
-    final substringFromId = source
-        .substring(source.indexOf("currentUserId=") + "currentUserId=".length);
-    return int.parse(
-        substringFromId.substring(0, substringFromId.indexOf(";")).trim());
+  static int? _readUserId(String source) {
+    final raw = _valueAfter(source, "currentUserId=", ";");
+    return raw == null ? null : int.tryParse(raw);
   }
 
-  static String _readAfterImgId(String source) {
-    return source
-        .substring(source.indexOf("navigationProfilePicture") +
-            "navigationProfilePicture".length)
-        .trim();
+  static String? _readAfterImgId(String source) {
+    const marker = "navigationProfilePicture";
+    final start = source.indexOf(marker);
+    if (start < 0) return null;
+    return source.substring(start + marker.length).trim();
   }
 
   static String _readFullName(String source) {
     final afterImgId = _readAfterImgId(source);
-    return afterImgId
-        .substring(afterImgId.indexOf(">") + 1, afterImgId.indexOf("<"))
-        .trim();
+    if (afterImgId == null) return "";
+    final open = afterImgId.indexOf(">");
+    final close = afterImgId.indexOf("<", open + 1);
+    if (open < 0 || close < 0) return "";
+    return afterImgId.substring(open + 1, close).trim();
   }
 
   static String _readImgSource(String source) {
     final afterImgId = _readAfterImgId(source);
-    final afterStart =
-        afterImgId.substring(afterImgId.indexOf('src="') + "src='".length);
-    return afterStart.substring(0, afterStart.indexOf('"')).trim();
+    if (afterImgId == null) return "";
+    return _valueAfter(afterImgId, 'src="', '"') ?? "";
   }
 
   final _loginMutex = Mutex();

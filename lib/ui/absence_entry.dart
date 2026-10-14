@@ -43,6 +43,7 @@ Future<AddFutureAbsencePayload?> showAddFutureAbsenceDialog(
   int maxHour = _fallbackMaxHour,
   DateTime? initialDate,
   List<LessonTime> lessonTimes = const [],
+  String? initialSignature,
 }) {
   return showDialog<AddFutureAbsencePayload>(
     context: context,
@@ -50,8 +51,26 @@ Future<AddFutureAbsencePayload?> showAddFutureAbsenceDialog(
       maxHour: maxHour < 1 ? _fallbackMaxHour : maxHour,
       initialDate: initialDate,
       lessonTimes: lessonTimes,
+      initialSignature: initialSignature,
     ),
   );
+}
+
+/// One tap fills the "Begründung" with the usual wording.
+const _quickReasons = ["Krankheit", "Arzttermin", "Familiäre Gründe"];
+
+/// The lesson to start an absence today with, the way the website picks it:
+/// the one running right now, otherwise the next one. Null when today's
+/// lessons are over (or no times are known), which means "tomorrow".
+int? firstLessonLeftToday(List<LessonTime> lessonTimes, DateTime now) {
+  final minutes = now.hour * 60 + now.minute;
+  final running = LessonTimes.at(lessonTimes, minutes);
+  if (running != null) return running.hour;
+  final upcoming = [
+    for (final time in lessonTimes)
+      if (time.startMinutes > minutes) time,
+  ]..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
+  return upcoming.isEmpty ? null : upcoming.first.hour;
 }
 
 class _AddFutureAbsenceDialog extends StatefulWidget {
@@ -59,11 +78,13 @@ class _AddFutureAbsenceDialog extends StatefulWidget {
     required this.maxHour,
     this.initialDate,
     this.lessonTimes = const [],
+    this.initialSignature,
   });
 
   final int maxHour;
   final DateTime? initialDate;
   final List<LessonTime> lessonTimes;
+  final String? initialSignature;
 
   @override
   State<_AddFutureAbsenceDialog> createState() =>
@@ -75,24 +96,56 @@ class _AddFutureAbsenceDialogState extends State<_AddFutureAbsenceDialog> {
   late DateTime endDate;
   late int startHour;
   late int endHour;
-  final noteController = TextEditingController();
+  final reasonController = TextEditingController();
+  late final TextEditingController signatureController;
 
   @override
   void initState() {
     super.initState();
-    final today = DateTime.now();
-    final initial = widget.initialDate ?? today;
-    startDate = DateTime(initial.year, initial.month, initial.day);
-    endDate = startDate;
-    startHour = 1;
+    signatureController =
+        TextEditingController(text: widget.initialSignature?.trim() ?? "");
     endHour = widget.maxHour;
+    final initial = widget.initialDate;
+    if (initial != null) {
+      startDate = DateTime(initial.year, initial.month, initial.day);
+      startHour = _startHourOn(startDate);
+    } else {
+      // Like the website: from the lesson running now (or the next one) until
+      // the end of the day; once today's lessons are over, tomorrow.
+      final now = DateTime.now();
+      final left = firstLessonLeftToday(widget.lessonTimes, now);
+      final today = DateTime(now.year, now.month, now.day);
+      startDate = left == null && widget.lessonTimes.isNotEmpty
+          ? _nextDay(today)
+          : today;
+      startHour = left ?? 1;
+    }
+    endDate = startDate;
+    if (startHour > widget.maxHour) startHour = widget.maxHour;
   }
 
   @override
   void dispose() {
-    noteController.dispose();
+    reasonController.dispose();
+    signatureController.dispose();
     super.dispose();
   }
+
+  static DateTime _nextDay(DateTime day) =>
+      DateTime(day.year, day.month, day.day + 1);
+
+  /// Today starts with the lesson still to come, any other day with the first.
+  int _startHourOn(DateTime day) {
+    final now = DateTime.now();
+    if (day.year == now.year && day.month == now.month && day.day == now.day) {
+      return firstLessonLeftToday(widget.lessonTimes, now) ?? 1;
+    }
+    return 1;
+  }
+
+  bool get _isValid =>
+      reasonController.text.trim().isNotEmpty &&
+      signatureController.text.trim().isNotEmpty;
 
   /// The first day that may be picked. Announcing an absence for a day in the
   /// past makes no sense, and the server rejects it.
@@ -112,6 +165,7 @@ class _AddFutureAbsenceDialogState extends State<_AddFutureAbsenceDialog> {
     if (picked == null) return;
     setState(() {
       startDate = picked;
+      startHour = _startHourOn(picked).clamp(1, widget.maxHour);
       if (endDate.isBefore(startDate)) endDate = startDate;
       _clampHours();
     });
@@ -144,8 +198,7 @@ class _AddFutureAbsenceDialogState extends State<_AddFutureAbsenceDialog> {
 
   /// "3. Stunde (09:45–10:35)" — knowing the time makes picking the right
   /// lesson a lot less error prone than counting.
-  String _hourLabel(int hour) =>
-      LessonTimes.label(widget.lessonTimes, hour);
+  String _hourLabel(int hour) => LessonTimes.label(widget.lessonTimes, hour);
 
   @override
   Widget build(BuildContext context) {
@@ -199,11 +252,36 @@ class _AddFutureAbsenceDialogState extends State<_AddFutureAbsenceDialog> {
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: noteController,
+              controller: reasonController,
               decoration: const InputDecoration(
-                labelText: "Anmerkung (optional)",
+                labelText: "Begründung",
+                hintText: "Begründung eingeben",
               ),
-              maxLines: 2,
+              minLines: 1,
+              maxLines: 3,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final reason in _quickReasons)
+                  ActionChip(
+                    label: Text(reason),
+                    onPressed: () => setState(() {
+                      reasonController.text = reason;
+                    }),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: signatureController,
+              decoration: const InputDecoration(
+                labelText: "Bestätigung",
+                hintText: "Mit Vor- und Nachnamen bestätigen",
+              ),
+              onChanged: (_) => setState(() {}),
             ),
           ],
         ),
@@ -214,22 +292,24 @@ class _AddFutureAbsenceDialogState extends State<_AddFutureAbsenceDialog> {
           child: const Text("Abbrechen"),
         ),
         ElevatedButton(
-          onPressed: () {
-            final note = noteController.text.trim();
-            Navigator.pop(
-              context,
-              AddFutureAbsencePayload(
-                (b) => b
-                  ..startDate = UtcDateTime(
-                      startDate.year, startDate.month, startDate.day)
-                  ..endDate =
-                      UtcDateTime(endDate.year, endDate.month, endDate.day)
-                  ..startHour = startHour
-                  ..endHour = endHour
-                  ..note = note.isEmpty ? null : note,
-              ),
-            );
-          },
+          onPressed: _isValid
+              ? () {
+                  Navigator.pop(
+                    context,
+                    AddFutureAbsencePayload(
+                      (b) => b
+                        ..startDate = UtcDateTime(
+                            startDate.year, startDate.month, startDate.day)
+                        ..endDate = UtcDateTime(
+                            endDate.year, endDate.month, endDate.day)
+                        ..startHour = startHour
+                        ..endHour = endHour
+                        ..reason = reasonController.text.trim()
+                        ..signature = signatureController.text.trim(),
+                    ),
+                  );
+                }
+              : null,
           child: const Text("Eintragen"),
         ),
       ],

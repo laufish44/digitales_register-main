@@ -495,7 +495,9 @@ void main() {
       expect(
         AbsenceStats.budget(
           statistic: null,
-          absences: [_group([_absence(2, 1)])],
+          absences: [
+            _group([_absence(2, 1)])
+          ],
           limitPercentage: 20,
         ),
         isNull,
@@ -618,12 +620,54 @@ void main() {
       expect(census.lessonsPerWeek, 0);
     });
 
+    // With the school calendar every day of school counts: the ones the
+    // calendar has loaded as they are, the others like a normal week.
+    test("counts every day of the school calendar", () {
+      final calendar = week(monday, {"BWL": 10, "Italienisch": 5});
+      final twoWeeks = schoolDays(monday, monday.add(const Duration(days: 11)));
+      final census = LessonCensus.of(
+        calendar,
+        now: monday,
+        schoolDays: twoWeeks,
+      );
+      expect(census.schoolDays, 10);
+      // The second week was never loaded and is filled in from the first.
+      expect(census.total, 30);
+      expect(census.weeks, 2);
+      expect(census.lessonsPerWeek, 15);
+      expect(census.totalOf("Italienisch"), 10);
+    });
+
+    test("holidays in the school calendar do not count", () {
+      final calendar = week(monday, {"BWL": 10});
+      final days = schoolDays(
+        monday,
+        monday.add(const Duration(days: 4)),
+        holidays: [
+          _holiday("frei", monday.add(const Duration(days: 2)),
+              monday.add(const Duration(days: 2))),
+        ],
+      );
+      final census = LessonCensus.of(calendar, now: monday, schoolDays: days);
+      expect(census.schoolDays, 4);
+      // Wednesday's two lessons are left out.
+      expect(census.total, 8);
+    });
+
+    test("the usual week is what most weeks look like", () {
+      final calendar = week(monday, {"BWL": 30});
+      expect(AbsenceStats.weeklyLessonsFromCalendar(calendar), 30);
+      expect(AbsenceStats.weeklyLessonsFromCalendar(CalendarState()), isNull);
+    });
+
     // Missing the first day of the year is 100 % of what has happened and
     // almost nothing of the year. One number cannot say both.
     test("the two percentages differ early in the year", () {
       final calendar = week(monday, {"BWL": 10});
       final budget = AbsenceStats.yearBudget(
-        absences: [_group([_absence(9, 1), _absence(9, 2)])],
+        absences: [
+          _group([_absence(9, 1), _absence(9, 2)])
+        ],
         calendar: calendar,
         now: UtcDateTime(2026, 3, 9),
         limitPercentage: 20,
@@ -638,7 +682,9 @@ void main() {
 
     test("what is left is measured against the whole year", () {
       final budget = AbsenceStats.yearBudget(
-        absences: [_group([_absence(9, 1)])],
+        absences: [
+          _group([_absence(9, 1)])
+        ],
         calendar: week(monday, {"BWL": 10}),
         now: UtcDateTime(2026, 3, 9),
         limitPercentage: 20,
@@ -666,7 +712,9 @@ void main() {
     test("gives up when the calendar is empty", () {
       expect(
         AbsenceStats.yearBudget(
-          absences: [_group([_absence(9, 1)])],
+          absences: [
+            _group([_absence(9, 1)])
+          ],
           calendar: CalendarState(),
           now: monday,
           limitPercentage: 20,
@@ -728,8 +776,15 @@ void main() {
     });
 
     test("a plain absence is not a late arrival", () {
-      expect(AbsenceStats.lateArrivals([_group([_absence(9, 1)])]), isEmpty);
-      expect(AbsenceStats.lateArrivalsByDay([_group([_absence(9, 1)])]),
+      expect(
+          AbsenceStats.lateArrivals([
+            _group([_absence(9, 1)])
+          ]),
+          isEmpty);
+      expect(
+          AbsenceStats.lateArrivalsByDay([
+            _group([_absence(9, 1)])
+          ]),
           isEmpty);
     });
 
@@ -742,16 +797,24 @@ void main() {
           ..date = UtcDateTime(2026, 3, 9)
           ..hour = 6,
       );
-      expect(AbsenceStats.earlyLeaves([_group([early])]), hasLength(1));
-      expect(AbsenceStats.lateArrivals([_group([early])]), isEmpty);
+      expect(
+          AbsenceStats.earlyLeaves([
+            _group([early])
+          ]),
+          hasLength(1));
+      expect(
+          AbsenceStats.lateArrivals([
+            _group([early])
+          ]),
+          isEmpty);
     });
   });
 
   group("SchoolYear", () {
     final holidays = [
       _holiday("Osterferien", UtcDateTime(2026, 4, 2), UtcDateTime(2026, 4, 7)),
-      _holiday("Weihnachten", UtcDateTime(2025, 12, 24),
-          UtcDateTime(2026, 1, 6)),
+      _holiday(
+          "Weihnachten", UtcDateTime(2025, 12, 24), UtcDateTime(2026, 1, 6)),
     ];
 
     test("counts down to the next holidays and skips the past ones", () {
@@ -776,8 +839,7 @@ void main() {
     });
 
     test("counts down to the last day of school", () {
-      final last =
-          SchoolYear.lastDay(UtcDateTime(2026, 6, 16), now: _today);
+      final last = SchoolYear.lastDay(UtcDateTime(2026, 6, 16), now: _today);
       expect(last!.days, 98);
       expect(SchoolYear.lastDay(UtcDateTime(2026, 1, 1), now: _today), isNull);
     });
@@ -792,20 +854,73 @@ void main() {
       expect(schoolYearStart(UtcDateTime(2026, 8, 31)), 2025);
     });
 
-    test("the default holidays follow the year they are asked for", () {
+    test("2026/27 comes from the published school calendar", () {
       final holidays = holidaysForSchoolYear(UtcDateTime(2026, 9, 18));
       final byName = {for (final h in holidays) h.name: h};
 
       expect(byName["Weihnachtsferien"]!.start, UtcDateTime(2026, 12, 24));
       expect(byName["Weihnachtsferien"]!.end, UtcDateTime(2027, 1, 6));
-      // Easter 2027 is 28 March, so the break runs Maundy Thursday to the
-      // Tuesday after.
+      // Easter 2027 is 28 March: Maundy Thursday to the Tuesday after.
       expect(byName["Osterferien"]!.start, UtcDateTime(2027, 3, 25));
       expect(byName["Osterferien"]!.end, UtcDateTime(2027, 3, 30));
-      // Rosenmontag 2027 is 8 February.
-      expect(byName["Winterferien"]!.start, UtcDateTime(2027, 2, 8));
-      expect(byName["Winterferien"]!.start.weekday, DateTime.monday);
-      expect(byName["Winterferien"]!.end, UtcDateTime(2027, 2, 12));
+      expect(
+          byName["Faschingsferien"]!.contains(UtcDateTime(2027, 2, 8)), isTrue);
+      expect(byName["Faschingsferien"]!.contains(UtcDateTime(2027, 2, 12)),
+          isTrue);
+      expect(defaultLastSchoolDayFor(UtcDateTime(2026, 10, 14)),
+          UtcDateTime(2027, 6, 16));
+      expect(
+          firstSchoolDay(UtcDateTime(2026, 10, 14)), UtcDateTime(2026, 9, 7));
+    });
+
+    // The school calendar prints how many days of school each weekday gets.
+    // Counting them from the table proves every break was typed in right.
+    test("the 2026/27 calendar has the printed 175 days of school", () {
+      final official = officialSchoolCalendar(2026)!;
+      final days = schoolDays(
+        official.firstDay,
+        official.lastDay,
+        holidays: official.holidays,
+      );
+      final perWeekday = <int, int>{};
+      for (final day in days) {
+        perWeekday.update(day.weekday, (v) => v + 1, ifAbsent: () => 1);
+      }
+      expect(perWeekday, {
+        DateTime.monday: 34,
+        DateTime.tuesday: 35,
+        DateTime.wednesday: 36,
+        DateTime.thursday: 35,
+        DateTime.friday: 35,
+      });
+      expect(days, hasLength(175));
+    });
+
+    test("years without a published calendar still get computed holidays", () {
+      final holidays = holidaysForSchoolYear(UtcDateTime(2027, 9, 18));
+      final byName = {for (final h in holidays) h.name: h};
+      expect(byName["Weihnachtsferien"]!.start, UtcDateTime(2027, 12, 24));
+      // Easter 2028 is 16 April, Rosenmontag 28 February.
+      expect(byName["Osterferien"]!.start, UtcDateTime(2028, 4, 13));
+      expect(byName["Winterferien"]!.start, UtcDateTime(2028, 2, 28));
+      expect(defaultLastSchoolDayFor(UtcDateTime(2027, 9, 18)),
+          UtcDateTime(2028, 6, 16));
+    });
+
+    test("settings from a finished school year count as outdated", () {
+      final now = UtcDateTime(2026, 10, 14);
+      final lastYear = holidaysForSchoolYear(UtcDateTime(2025, 10, 1));
+      expect(
+        schoolYearSettingsOutdated(lastYear, UtcDateTime(2026, 6, 16),
+            now: now),
+        isTrue,
+      );
+      expect(
+        schoolYearSettingsOutdated(
+            holidaysForSchoolYear(now), UtcDateTime(2027, 6, 16),
+            now: now),
+        isFalse,
+      );
     });
 
     // Holidays regularly start on a Saturday, and the calendar only lays out
@@ -844,7 +959,8 @@ void main() {
   group("UpdateService GitHub addresses", () {
     test("turns a repository address into the API address", () {
       expect(
-        UpdateService.gitHubApiUri("https://github.com/miDeb/digitales_register")
+        UpdateService.gitHubApiUri(
+                "https://github.com/miDeb/digitales_register")
             .toString(),
         "https://api.github.com/repos/miDeb/digitales_register/releases/latest",
       );
@@ -897,7 +1013,8 @@ void main() {
     });
 
     test("is not fooled by something that is not GitHub", () {
-      expect(UpdateService.gitHubApiUri("https://example.org/releases"), isNull);
+      expect(
+          UpdateService.gitHubApiUri("https://example.org/releases"), isNull);
       expect(UpdateService.gitHubApiUri(""), isNull);
       expect(UpdateService.gitHubApiUri("https://github.com/user"), isNull);
     });

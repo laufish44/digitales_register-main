@@ -17,7 +17,9 @@
 
 import 'package:built_redux/built_redux.dart';
 import 'package:dr/actions/app_actions.dart';
+import 'package:dr/actions/grades_actions.dart';
 import 'package:dr/actions/login_actions.dart';
+import 'package:dr/actions/settings_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/reducer/absences.dart';
 import 'package:dr/reducer/calendar.dart';
@@ -30,6 +32,7 @@ import 'package:dr/reducer/network_protocol.dart';
 import 'package:dr/reducer/notifications.dart';
 import 'package:dr/reducer/profile_reducer.dart';
 import 'package:dr/reducer/settings.dart';
+import 'package:dr/school_year.dart';
 import 'package:dr/util.dart';
 
 final appReducerBuilder = ReducerBuilder<AppState, AppStateBuilder>()
@@ -48,7 +51,44 @@ final appReducerBuilder = ReducerBuilder<AppState, AppStateBuilder>()
   ..combineNested(settingsReducerBuilder)
   ..combineNested(certificateReducerBuilder)
   ..combineNested(profileReducerBuilder)
-  ..combineNested(messagesReducerBuilder);
+  ..combineNested(messagesReducerBuilder)
+  // Reducers for one action run in the order they were added, so these come
+  // last: they correct what the nested reducers above have just done.
+  ..add(AppActionsNames.mountAppState, _updateSchoolCalendar)
+  ..add(AppActionsNames.mountAppState, _keepSingleSemester)
+  ..add(AppActionsNames.setConfig, _keepSingleSemester)
+  ..add(GradesActionsNames.setSemester, _keepSingleSemester)
+  ..add(SettingsActionsNames.setSemestersPerYear, _keepSingleSemester);
+
+/// With one semester per year there is nothing to pick: whatever the server
+/// reports as current, or a state stored with "both semesters", the grades
+/// show the first (and only) one.
+void _keepSingleSemester(
+    AppState state, Action<dynamic> action, AppStateBuilder builder) {
+  if (builder.settingsState.semestersPerYear == 1) {
+    builder.gradesState.semester.replace(Semester.first);
+  }
+}
+
+/// Brings stored holidays and the last day of school to the built-in school
+/// calendar: once when it gained a year (or a correction), and whenever the
+/// stored ones belong to a school year that is over.
+void _updateSchoolCalendar(
+    AppState state, Action<dynamic> action, AppStateBuilder builder) {
+  final settings = builder.settingsState;
+  final outdated = schoolYearSettingsOutdated(
+    settings.holidays.build(),
+    settings.lastSchoolDay,
+    now: now,
+  );
+  if (settings.schoolCalendarRevision == schoolCalendarRevision && !outdated) {
+    return;
+  }
+  settings
+    ..holidays.replace(holidaysForSchoolYear(now))
+    ..lastSchoolDay = defaultLastSchoolDay
+    ..schoolCalendarRevision = schoolCalendarRevision;
+}
 
 void _noInternet(AppState state, Action<bool> action, AppStateBuilder builder) {
   builder.noInternet = action.payload;

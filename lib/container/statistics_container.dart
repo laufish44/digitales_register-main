@@ -46,6 +46,7 @@ class StatisticsViewModel {
         holidays = state.settingsState.holidays.toList(),
         lastSchoolDay = state.settingsState.lastSchoolDay,
         lessonTimes = LessonTimes.resolve(state.settingsState.lessonSchedule),
+        ignoredForAverage = state.settingsState.ignoreForGradesAverage.toList(),
         loggedIn = state.loginState.loggedIn;
 
   final GradesState grades;
@@ -56,6 +57,7 @@ class StatisticsViewModel {
   final List<HolidayPeriod> holidays;
   final UtcDateTime? lastSchoolDay;
   final List<LessonTime> lessonTimes;
+  final List<String> ignoredForAverage;
   final bool loggedIn;
 
   bool get hasGrades => grades.subjects.isNotEmpty;
@@ -71,6 +73,8 @@ class StatisticsViewModel {
       other.limitPercentage == limitPercentage &&
       other.lastSchoolDay == lastSchoolDay &&
       other.loggedIn == loggedIn &&
+      BuiltList(other.lessonTimes) == BuiltList(lessonTimes) &&
+      BuiltList(other.ignoredForAverage) == BuiltList(ignoredForAverage) &&
       BuiltList(other.holidays) == BuiltList(holidays);
 
   @override
@@ -118,6 +122,7 @@ class _StatisticsState extends State<_Statistics> {
       holidays: vm.holidays,
       lastSchoolDay: vm.lastSchoolDay,
       lessonTimes: vm.lessonTimes,
+      ignoredForAverage: vm.ignoredForAverage,
       loading: vm.grades.loading || (_requested && !vm.hasAbsences),
     );
   }

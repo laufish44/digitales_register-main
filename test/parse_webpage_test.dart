@@ -27,6 +27,40 @@ void main() {
         "https://vinzentinum.digitalesregister.it/v2/theme/icons/profile_empty.png");
     expect(config.autoLogoutSeconds, 300);
   });
+
+  // Reported crash: "FormatException: Invalid radix-10 number (at character 1)
+  // ml>". When the page has no user id, the old parser read from a fixed
+  // offset into whatever HTML it got.
+  test('a page without a user id is reported, not parsed', () {
+    const otherPage = "<!DOCTYPE html>\n<html><head><title>WLAN-Anmeldung"
+        "</title></head><body>Bitte anmelden</body></html>";
+    expect(
+      () => Wrapper.parseConfig(otherPage),
+      throwsA(isA<ConfigUnavailableException>()),
+    );
+  });
+
+  test('an empty page is reported, not parsed', () {
+    expect(
+      () => Wrapper.parseConfig(""),
+      throwsA(isA<ConfigUnavailableException>()),
+    );
+  });
+
+  test('a non-numeric user id is reported, not parsed', () {
+    expect(
+      () => Wrapper.parseConfig("var currentUserId=abc;"),
+      throwsA(isA<ConfigUnavailableException>()),
+    );
+  });
+
+  test('missing optional fields fall back to defaults', () {
+    final config = Wrapper.parseConfig("var currentUserId=42;");
+    expect(config.userId, 42);
+    expect(config.fullName, "");
+    expect(config.imgSource, "");
+    expect(config.autoLogoutSeconds, 300);
+  });
 }
 
 String headers =

@@ -22,6 +22,7 @@ import 'package:dr/actions/settings_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/lesson_times.dart';
 import 'package:dr/notifications/notification_store.dart';
+import 'package:dr/school_year.dart';
 import 'package:dr/theme.dart';
 import 'package:dr/widgets/widget_catalog.dart';
 import 'package:flutter/material.dart' hide Action;
@@ -84,10 +85,17 @@ final settingsReducerBuilder = NestedReducerBuilder<AppState, AppStateBuilder,
       (s, a, b) => b.releaseSource = normalizeBackendUrl(a.payload))
   ..add(SettingsActionsNames.setDashboardWidgets, _setDashboardWidgets)
   ..add(SettingsActionsNames.setGradeTarget, _setGradeTarget)
-  ..add(SettingsActionsNames.setHolidays,
-      (s, a, b) => b.holidays.replace(a.payload))
-  ..add(SettingsActionsNames.setLastSchoolDay,
-      (s, a, b) => b.lastSchoolDay = a.payload)
+  // Edited by hand: from now on the built-in calendar must not overwrite it.
+  ..add(
+      SettingsActionsNames.setHolidays,
+      (s, a, b) => b
+        ..holidays.replace(a.payload)
+        ..schoolCalendarRevision = schoolCalendarRevision)
+  ..add(
+      SettingsActionsNames.setLastSchoolDay,
+      (s, a, b) => b
+        ..lastSchoolDay = a.payload
+        ..schoolCalendarRevision = schoolCalendarRevision)
   ..add(SettingsActionsNames.setShowSchoolYearCountdown,
       (s, a, b) => b.showSchoolYearCountdown = a.payload)
   ..add(SettingsActionsNames.setWeeklyLessons,
@@ -99,7 +107,9 @@ final settingsReducerBuilder = NestedReducerBuilder<AppState, AppStateBuilder,
       (s, a, b) => b.lessonSchedule
           .replace(LessonTimes.normalize(a.payload).where(_isSaneLessonTime)))
   ..add(SettingsActionsNames.setPrefetchWholeCalendar,
-      (s, a, b) => b.prefetchWholeCalendar = a.payload);
+      (s, a, b) => b.prefetchWholeCalendar = a.payload)
+  ..add(SettingsActionsNames.setSemestersPerYear,
+      (s, a, b) => b.semestersPerYear = a.payload == 1 ? 1 : 2);
 
 /// Drops entries that cannot be a lesson, so a mistyped time cannot make the
 /// timetable nonsensical.

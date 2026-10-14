@@ -121,7 +121,8 @@ class _GradeTrendCardState extends State<GradeTrendCard> {
   int targetWeight = 100;
 
   double get target =>
-      _dragging ?? (widget.target != null ? widget.target! / 100 : _defaultTarget);
+      _dragging ??
+      (widget.target != null ? widget.target! / 100 : _defaultTarget);
 
   String _format(double scaledByHundred) =>
       gradeAverageFormat.format(scaledByHundred / 100);
@@ -129,7 +130,7 @@ class _GradeTrendCardState extends State<GradeTrendCard> {
   @override
   Widget build(BuildContext context) {
     final grades = widget.grades;
-    final average = GradeStats.weightedAverage(grades);
+    final average = GradeStats.subjectAverage(grades);
     if (average == null) return const SizedBox.shrink();
 
     final theme = Theme.of(context);

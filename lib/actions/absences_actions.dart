@@ -56,13 +56,20 @@ abstract class AddFutureAbsencePayload
   int get startHour;
   int get endHour;
 
-  String? get note;
+  /// "Begründung". The server ignores an announcement without one, see
+  /// `isFormValid` of `StudentFutureAbsenceController` in the web app.
+  String get reason;
+
+  /// "Bestätigung": the first and last name of whoever announces the absence.
+  /// Required as well.
+  String get signature;
 }
 
 abstract class JustifyAbsencePayload
     implements Built<JustifyAbsencePayload, JustifyAbsencePayloadBuilder> {
   factory JustifyAbsencePayload(
-      [void Function(JustifyAbsencePayloadBuilder)? updates]) = _$JustifyAbsencePayload;
+          [void Function(JustifyAbsencePayloadBuilder)? updates]) =
+      _$JustifyAbsencePayload;
   JustifyAbsencePayload._();
 
   AbsenceGroup get group;

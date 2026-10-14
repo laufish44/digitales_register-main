@@ -16,6 +16,7 @@
 // along with digitales_register.  If not, see <http://www.gnu.org/licenses/>.
 
 import 'package:built_collection/built_collection.dart';
+import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/stats.dart';
 import 'package:dr/utc_date_time.dart';
@@ -73,7 +74,62 @@ FutureAbsence _future({
         ..endHour = endHour,
     );
 
+Subject _subject(String name, List<GradeAll> grades) => Subject(
+      (b) => b
+        ..id = name.hashCode
+        ..name = name
+        ..gradesAll = MapBuilder<Semester, BuiltList<GradeAll>>(
+            {Semester.first: BuiltList<GradeAll>(grades)})
+        ..grades = MapBuilder()
+        ..observations = MapBuilder(),
+    );
+
 void main() {
+  // The original app (and the grades page) averages the subject averages, so
+  // a subject with one grade weighs as much as one with ten. Pooling all the
+  // grades gives a different number - which is why the statistics page used
+  // to disagree with the grades page.
+  group("overall average like the original app", () {
+    final subjects = [
+      _subject("Mathematik", [_grade(400), _grade(400), _grade(400)]),
+      _subject("Deutsch", [_grade(800)]),
+    ];
+
+    test("is the mean of the subject averages", () {
+      expect(GradeStats.overallAverage(subjects, Semester.first), 600);
+      // Pooled: (3 * 4 + 8) / 4 = 5.
+      expect(
+        GradeStats.weightedAverage(
+            subjects.expand((s) => s.basicGrades(Semester.first)!)),
+        500,
+      );
+    });
+
+    test("leaves out the subjects excluded in the settings", () {
+      expect(
+        GradeStats.overallAverage(subjects, Semester.first,
+            ignored: ["mathematik"]),
+        800,
+      );
+      expect(
+        GradeStats.overallAverage(subjects, Semester.first,
+            ignored: ["Mathematik", "Deutsch"]),
+        isNull,
+      );
+    });
+
+    test("rounds each subject the way the grades page shows it", () {
+      final subject =
+          _subject("Englisch", [_grade(700), _grade(725), _grade(725)]);
+      // 716.67 shows as 7,17 on the grades page.
+      expect(subject.average(Semester.first), 717);
+      expect(
+        GradeStats.subjectAverage(subject.basicGrades(Semester.first)!),
+        717,
+      );
+      expect(GradeStats.overallAverage([subject], Semester.first), 717);
+    });
+  });
   group("GradeStats.weightedAverage", () {
     test("weights grades", () {
       // 10 at 100% and 6 at 300% -> (1000 + 1800) / 400 = 700
@@ -95,7 +151,8 @@ void main() {
     });
 
     test("is null without anything that counts", () {
-      expect(GradeStats.weightedAverage([_grade(500, cancelled: true)]), isNull);
+      expect(
+          GradeStats.weightedAverage([_grade(500, cancelled: true)]), isNull);
     });
   });
 
@@ -297,8 +354,7 @@ void main() {
         date: UtcDateTime(2026, 3, 10),
         hour: 3,
         absences: [
-          _group([_absence(10, 3)],
-              justified: AbsenceJustified.notYetJustified)
+          _group([_absence(10, 3)], justified: AbsenceJustified.notYetJustified)
         ],
         futureAbsences: [
           _future(startDay: 10, endDay: 10, startHour: 1, endHour: 8)
@@ -312,7 +368,9 @@ void main() {
         AbsenceMarks.forHour(
           date: UtcDateTime(2026, 3, 10),
           hour: 3,
-          absences: [_group([_absence(10, 3)])],
+          absences: [
+            _group([_absence(10, 3)])
+          ],
           futureAbsences: const [],
         ),
         AbsenceMark.justified,
@@ -324,7 +382,9 @@ void main() {
         AbsenceMarks.forHour(
           date: UtcDateTime(2026, 3, 10),
           hour: 7,
-          absences: [_group([_absence(10, 3)])],
+          absences: [
+            _group([_absence(10, 3)])
+          ],
           futureAbsences: const [],
         ),
         AbsenceMark.none,
@@ -337,8 +397,7 @@ void main() {
         fromHour: 1,
         toHour: 4,
         absences: [
-          _group([_absence(10, 4)],
-              justified: AbsenceJustified.notYetJustified)
+          _group([_absence(10, 4)], justified: AbsenceJustified.notYetJustified)
         ],
         futureAbsences: const [],
       );
