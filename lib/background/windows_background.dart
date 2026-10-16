@@ -33,6 +33,7 @@ import 'package:dr/notifications/notification_service.dart';
 import 'package:dr/notifications/notification_store.dart';
 import 'package:dr/notifications/notification_watcher.dart';
 import 'package:dr/notifications/register_api.dart';
+import 'package:dr/windows_data_migration.dart';
 import 'package:flutter/widgets.dart';
 
 /// Loopback port the running app binds so the service can tell it is there.
@@ -49,6 +50,9 @@ const _backoff = Duration(minutes: 5);
 
 Future<void> runWindowsBackgroundService() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // The service may start before the app after an update; it needs the
+  // stored login just as much (#7).
+  await recoverDataFromOldFolder();
 
   final lock = await _bind(servicePresencePort);
   if (lock == null) {

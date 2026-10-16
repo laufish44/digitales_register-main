@@ -32,6 +32,7 @@ import 'package:dr/container/profile_container.dart';
 import 'package:dr/container/request_pass_reset_container.dart';
 import 'package:dr/container/settings_page.dart';
 import 'package:dr/desktop.dart';
+import 'package:dr/windows_data_migration.dart';
 import 'package:dr/middleware/middleware.dart';
 import 'package:dr/reducer/reducer.dart';
 import 'package:dr/theme.dart';
@@ -67,6 +68,8 @@ Future<void> main(List<String> args) async {
 
   final binding = WidgetsFlutterBinding.ensureInitialized();
   binding.deferFirstFrame();
+  // Before anything reads its data: 8.6.0 looked in a new folder (#7).
+  await recoverDataFromOldFolder();
   if (Platform.isWindows) {
     // Lets the background service know it can stay quiet while we are open.
     unawaited(announceAppIsRunning());
@@ -158,64 +161,64 @@ class RegisterApp extends StatelessWidget {
                 final List<String> pathElements = settings.name!.split("/");
                 if (pathElements[0] != "") return null;
                 switch (pathElements[1]) {
-                case "":
-                  return MaterialPageRoute<void>(
-                    settings: settings,
-                    builder: (_) => HomePage(),
-                  );
-                case "login":
-                  return MaterialPageRoute<void>(
-                    settings: settings,
-                    builder: (_) => LoginPage(),
-                  );
-                case "request_pass_reset":
-                  return MaterialPageRoute<void>(
-                    settings: settings,
-                    builder: (_) => RequestPassResetContainer(),
-                  );
-                case "pass_reset":
-                  return MaterialPageRoute<void>(
-                    settings: settings,
-                    builder: (_) => PassResetContainer(),
-                  );
-                case "change_email":
-                  return MaterialPageRoute<void>(
-                    settings: settings,
-                    builder: (_) => ChangeEmailContainer(),
-                  );
-                case "profile":
-                  return MaterialPageRoute<void>(
-                    settings: settings,
-                    builder: (_) => ProfileContainer(),
-                  );
-                case "notifications":
-                  return MaterialPageRoute<void>(
-                    settings: settings,
-                    builder: (_) => NotificationPageContainer(),
-                    fullscreenDialog: true,
-                  );
-                case "gradesChart":
-                  return MaterialPageRoute<void>(
-                    settings: settings,
-                    builder: (_) => const GradesChartPage(),
-                    fullscreenDialog: true,
-                  );
-                case "gradeCalculator":
-                  return MaterialPageRoute<void>(
-                    settings: settings,
-                    builder: (_) => const GradeCalculator(),
-                    fullscreenDialog: true,
-                  );
-                case "settings":
-                  return MaterialPageRoute<void>(
-                    settings: settings,
-                    builder: (_) => SettingsPageContainer(),
-                    fullscreenDialog: true,
-                  );
-                default:
-                  throw Exception("Unknown Route ${pathElements[1]}");
-              }
-            },
+                  case "":
+                    return MaterialPageRoute<void>(
+                      settings: settings,
+                      builder: (_) => HomePage(),
+                    );
+                  case "login":
+                    return MaterialPageRoute<void>(
+                      settings: settings,
+                      builder: (_) => LoginPage(),
+                    );
+                  case "request_pass_reset":
+                    return MaterialPageRoute<void>(
+                      settings: settings,
+                      builder: (_) => RequestPassResetContainer(),
+                    );
+                  case "pass_reset":
+                    return MaterialPageRoute<void>(
+                      settings: settings,
+                      builder: (_) => PassResetContainer(),
+                    );
+                  case "change_email":
+                    return MaterialPageRoute<void>(
+                      settings: settings,
+                      builder: (_) => ChangeEmailContainer(),
+                    );
+                  case "profile":
+                    return MaterialPageRoute<void>(
+                      settings: settings,
+                      builder: (_) => ProfileContainer(),
+                    );
+                  case "notifications":
+                    return MaterialPageRoute<void>(
+                      settings: settings,
+                      builder: (_) => NotificationPageContainer(),
+                      fullscreenDialog: true,
+                    );
+                  case "gradesChart":
+                    return MaterialPageRoute<void>(
+                      settings: settings,
+                      builder: (_) => const GradesChartPage(),
+                      fullscreenDialog: true,
+                    );
+                  case "gradeCalculator":
+                    return MaterialPageRoute<void>(
+                      settings: settings,
+                      builder: (_) => const GradeCalculator(),
+                      fullscreenDialog: true,
+                    );
+                  case "settings":
+                    return MaterialPageRoute<void>(
+                      settings: settings,
+                      builder: (_) => SettingsPageContainer(),
+                      fullscreenDialog: true,
+                    );
+                  default:
+                    throw Exception("Unknown Route ${pathElements[1]}");
+                }
+              },
               theme: theme,
               debugShowCheckedModeBanner: false,
             ),
