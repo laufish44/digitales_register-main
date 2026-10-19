@@ -531,16 +531,51 @@ Future<void> _restarted(
   Action<void> action,
 ) async {
   await next(action);
-  if (api.state.loginState.loggedIn &&
-      DateTime.now().difference(wrapper.lastInteraction).inMinutes > 3) {
-    wrapper.interaction();
-    final poppedAnything = _popAll();
-    if (!poppedAnything) {
-      // If we pop something the routeObserver will trigger a reload of the dasboard.
-      // However, if we are on the dashboard already, we need to this here.
-      await api.actions.dashboardActions.refresh();
-    }
+  // Dispatched by LifecycleObserver after the app was out of view for a
+  // while (#9).
+  if (!api.state.loginState.loggedIn) return;
+  wrapper.interaction();
+  if (api.state.noInternet) {
+    // The connection dropped while away (standby, Android's battery saving).
+    // Offline every load is skipped, so the app stayed on the old data until
+    // refreshed by hand. Coming back online refreshes the dashboard by itself.
+    await api.actions.refreshNoInternet();
+    if (api.state.noInternet) return;
   }
+  _popAll();
+  await _refreshCurrentPage(api);
+}
+
+/// Reloads what is on screen, not only the dashboard: whoever left the app on
+/// the calendar or the grades comes back to that page.
+Future<void> _refreshCurrentPage(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api) async {
+  final page = scaffoldKey?.currentState?.currentSelected;
+  final refreshes = <Future<void>>[
+    // Always: it is the start page and carries the notification count.
+    api.actions.dashboardActions.refresh(),
+  ];
+  switch (page) {
+    case Pages.grades:
+      refreshes
+          .add(api.actions.gradesActions.load(api.state.gradesState.semester));
+    case Pages.absences:
+      refreshes.add(api.actions.absencesActions.load());
+    case Pages.calendar:
+      final monday = api.state.calendarState.currentMonday;
+      if (monday != null)
+        refreshes.add(api.actions.calendarActions.load(monday));
+    case Pages.messages:
+      refreshes.add(api.actions.messagesActions.load());
+    case Pages.certificate:
+      refreshes.add(api.actions.certificateActions.load());
+    case Pages.statistics:
+      refreshes
+        ..add(api.actions.gradesActions.load(api.state.gradesState.semester))
+        ..add(api.actions.absencesActions.load());
+    default:
+  }
+  await Future.wait(refreshes);
 }
 
 Future<void> _start(

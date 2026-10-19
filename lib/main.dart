@@ -23,6 +23,7 @@ import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/background/windows_autostart.dart';
 import 'package:dr/background/windows_background.dart';
+import 'package:dr/background/windows_window.dart';
 import 'package:dr/container/change_email_container.dart';
 import 'package:dr/container/home_page.dart';
 import 'package:dr/container/login_page.dart';
@@ -41,6 +42,7 @@ import 'package:dr/ui/grades_chart_page.dart';
 import 'package:dr/util.dart';
 import 'package:dynamic_theme/dynamic_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_built_redux/flutter_built_redux.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -73,6 +75,19 @@ Future<void> main(List<String> args) async {
   if (Platform.isWindows) {
     // Lets the background service know it can stay quiet while we are open.
     unawaited(announceAppIsRunning());
+    // Ctrl+W closes the window, as in most Windows programs (#14). A global
+    // handler, so it works whatever has the focus.
+    HardwareKeyboard.instance.addHandler((event) {
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.keyW &&
+          HardwareKeyboard.instance.isControlPressed &&
+          !HardwareKeyboard.instance.isAltPressed &&
+          !HardwareKeyboard.instance.isShiftPressed) {
+        closeMainWindow();
+        return true;
+      }
+      return false;
+    });
   }
   try {
     packageInfo = await PackageInfo.fromPlatform();
@@ -234,10 +249,26 @@ class LifecycleObserver with WidgetsBindingObserver {
   final VoidCallback onBackground;
 
   LifecycleObserver(this.onForeground, this.onBackground);
+
+  /// How long the app has to be out of view before coming back refreshes it
+  /// (#9). Switching to another window for a moment does not.
+  static const refreshAfter = Duration(minutes: 5);
+
+  /// Since when the app is in the background (Android) or without focus,
+  /// minimised or hidden (Windows). Null while it is in front.
+  DateTime? _awaySince;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      onForeground();
+      final awaySince = _awaySince;
+      _awaySince = null;
+      if (awaySince != null &&
+          DateTime.now().difference(awaySince) >= refreshAfter) {
+        onForeground();
+      }
+    } else {
+      _awaySince ??= DateTime.now();
     }
     if (state == AppLifecycleState.paused) {
       onBackground();

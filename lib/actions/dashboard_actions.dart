@@ -34,6 +34,10 @@ abstract class DashboardActions extends ReduxActions {
   abstract final VoidActionDispatcher switchFuture;
   abstract final ActionDispatcher<HomeworkAddedPayload> homeworkAdded;
   abstract final ActionDispatcher<AddReminderPayload> addReminder;
+
+  /// Changes the text of a reminder. The register cannot edit one, so this
+  /// saves a new reminder and deletes the old one.
+  abstract final ActionDispatcher<EditReminderPayload> editReminder;
   abstract final ActionDispatcher<Homework> deleteHomework;
   abstract final ActionDispatcher<ToggleDonePayload> toggleDone;
   abstract final ActionDispatcher<Homework> markAsSeen;
@@ -82,6 +86,18 @@ abstract class AddReminderPayload
       _$AddReminderPayload;
   AddReminderPayload._();
 
+  String get msg;
+  UtcDateTime get date;
+}
+
+abstract class EditReminderPayload
+    implements Built<EditReminderPayload, EditReminderPayloadBuilder> {
+  factory EditReminderPayload(
+          [void Function(EditReminderPayloadBuilder)? updates]) =
+      _$EditReminderPayload;
+  EditReminderPayload._();
+
+  Homework get reminder;
   String get msg;
   UtcDateTime get date;
 }

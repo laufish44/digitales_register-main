@@ -27,6 +27,7 @@ import 'package:dr/container/sidebar_container.dart';
 import 'package:dr/data.dart';
 import 'package:dr/main.dart';
 import 'package:dr/middleware/middleware.dart';
+import 'package:dr/reminder_links.dart';
 import 'package:dr/ui/animated_linear_progress_indicator.dart';
 import 'package:dr/ui/attachment_actions.dart';
 import 'package:dr/ui/dialog.dart';
@@ -43,6 +44,8 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:tuple/tuple.dart';
 
 typedef AddReminderCallback = void Function(Day day, String reminder);
+typedef EditReminderCallback = void Function(
+    Homework reminder, Day day, String text);
 typedef RemoveReminderCallback = void Function(Homework hw, Day day);
 typedef ToggleDoneCallback = void Function(Homework hw, bool done);
 typedef MarkAsNotNewOrChangedCallback = void Function(Homework hw);
@@ -55,6 +58,7 @@ class DaysWidget extends StatefulWidget {
   final MarkDeletedHomeworkAsSeenCallback markDeletedHomeworkAsSeenCallback;
   final VoidCallback markAllAsSeenCallback;
   final AddReminderCallback addReminderCallback;
+  final EditReminderCallback editReminderCallback;
   final RemoveReminderCallback removeReminderCallback;
   final VoidCallback onSwitchFuture;
   final ToggleDoneCallback toggleDoneCallback;
@@ -71,6 +75,7 @@ class DaysWidget extends StatefulWidget {
     required this.markAsSeenCallback,
     required this.markDeletedHomeworkAsSeenCallback,
     required this.addReminderCallback,
+    required this.editReminderCallback,
     required this.removeReminderCallback,
     required this.markAllAsSeenCallback,
     required this.onSwitchFuture,
@@ -168,8 +173,10 @@ class _DaysWidgetState extends State<DaysWidget> {
         _dayIndexes[index] = day;
       }
       index++;
+      final links = DayReminderLinks.of(day.homework);
       for (final hw in day.homework) {
-        if (hw.isNew || hw.isChanged) {
+        // A linked reminder has no tile of its own to scroll to.
+        if ((hw.isNew || hw.isChanged) && !links.isLinked(hw)) {
           _targets.add(index);
         }
         _homeworkIndexes[index] = hw;
@@ -229,6 +236,7 @@ class _DaysWidgetState extends State<DaysWidget> {
       controller: controller,
       index: _dayStartIndices[itemIndex]!,
       addReminderCallback: widget.addReminderCallback,
+      editReminderCallback: widget.editReminderCallback,
       removeReminderCallback: widget.removeReminderCallback,
       toggleDoneCallback: widget.toggleDoneCallback,
       setDoNotAskWhenDeleteCallback: widget.setDoNotAskWhenDeleteCallback,
@@ -485,6 +493,7 @@ class DayWidget extends StatelessWidget {
   final DaysViewModel vm;
 
   final AddReminderCallback addReminderCallback;
+  final EditReminderCallback editReminderCallback;
   final RemoveReminderCallback removeReminderCallback;
   final ToggleDoneCallback toggleDoneCallback;
   final VoidCallback setDoNotAskWhenDeleteCallback;
@@ -508,6 +517,7 @@ class DayWidget extends StatelessWidget {
     required this.controller,
     required this.index,
     required this.addReminderCallback,
+    required this.editReminderCallback,
     required this.removeReminderCallback,
     required this.toggleDoneCallback,
     required this.setDoNotAskWhenDeleteCallback,
@@ -520,15 +530,21 @@ class DayWidget extends StatelessWidget {
     required this.showLastFetched,
   });
 
-  Future<String?> showEnterReminderDialog(BuildContext context) async {
+  Future<String?> showEnterReminderDialog(
+    BuildContext context, {
+    String initial = "",
+    String title = "Erinnerung",
+  }) async {
     return showDialog(
       context: context,
       builder: (context) {
-        String message = "";
+        String message = initial;
+        final controller = TextEditingController(text: initial);
         return StatefulBuilder(
           builder: (context, setState) => InfoDialog(
-            title: const Text("Erinnerung"),
+            title: Text(title),
             content: TextField(
+              controller: controller,
               autofocus: true,
               maxLines: null,
               onChanged: (msg) {
@@ -544,7 +560,7 @@ class DayWidget extends StatelessWidget {
                 child: const Text("Abbrechen"),
               ),
               ElevatedButton(
-                onPressed: message.isNullOrEmpty
+                onPressed: message.trim().isEmpty || message == initial
                     ? null
                     : () {
                         Navigator.pop(context, message);
@@ -560,9 +576,49 @@ class DayWidget extends StatelessWidget {
     );
   }
 
+  /// Placeholder that keeps the running index in step; renders nothing.
+  Widget _skip(int index) => const SizedBox.shrink();
+
+  /// Ticking an entry ticks the reminders that belong to it as well (#10).
+  void _toggle(Homework hw, DayReminderLinks links) {
+    final done = !hw.checked;
+    toggleDoneCallback(hw, done);
+    for (final reminder in links.remindersOf(hw)) {
+      if (reminder.checkable && reminder.checked != done) {
+        toggleDoneCallback(reminder, done);
+      }
+    }
+  }
+
+  Future<void> _edit(BuildContext context, Homework reminder) async {
+    final linkKey = linkKeyIn(reminder.subtitle);
+    final text = await showEnterReminderDialog(
+      context,
+      initial: reminderTextOf(reminder.subtitle),
+      title: "Erinnerung bearbeiten",
+    );
+    if (text == null) return;
+    // Keep the link to the entry the reminder belongs to.
+    editReminderCallback(
+      reminder,
+      day,
+      linkKey == null ? text.trim() : "${text.trim()} [#$linkKey]",
+    );
+  }
+
+  Future<void> _addNote(BuildContext context, Homework entry) async {
+    final text = await showEnterReminderDialog(
+      context,
+      title: "Notiz zu ${entry.label ?? entry.title}",
+    );
+    if (text == null) return;
+    addReminderCallback(day, linkedReminderText(text, entry));
+  }
+
   @override
   Widget build(BuildContext context) {
     var i = index;
+    final links = DayReminderLinks.of(day.homework);
     return Column(
       children: <Widget>[
         SizedBox(
@@ -662,22 +718,43 @@ class DayWidget extends StatelessWidget {
           ),
         ),
         for (final hw in day.homework)
-          ItemWidget(
-            item: hw,
-            toggleDone: () => toggleDoneCallback(hw, !hw.checked),
-            removeThis: () => removeReminderCallback(hw, day),
-            setDoNotAskWhenDelete: setDoNotAskWhenDeleteCallback,
-            askWhenDelete: vm.askWhenDelete,
-            noInternet: vm.noInternet,
-            controller: controller,
-            index: ++i,
-            onOpenAttachment: onOpenAttachment,
-            onSaveAttachmentAs: onSaveAttachmentAs,
-            onCopyAttachment: onCopyAttachment,
-            subjectThemes: subjectThemes,
-            colorBorder: colorBorders,
-            colorTestsInRed: colorTestsInRed,
-          ),
+          // Linked reminders show inside their entry; the index still counts
+          // them so it matches the one the scroll targets were made with.
+          if (links.isLinked(hw))
+            _skip(++i)
+          else
+            ItemWidget(
+              item: hw,
+              toggleDone: () => _toggle(hw, links),
+              removeThis: () => removeReminderCallback(hw, day),
+              setDoNotAskWhenDelete: setDoNotAskWhenDeleteCallback,
+              askWhenDelete: vm.askWhenDelete,
+              noInternet: vm.noInternet,
+              controller: controller,
+              index: ++i,
+              onOpenAttachment: onOpenAttachment,
+              onSaveAttachmentAs: onSaveAttachmentAs,
+              onCopyAttachment: onCopyAttachment,
+              subjectThemes: subjectThemes,
+              colorBorder: colorBorders,
+              colorTestsInRed: colorTestsInRed,
+              linkedReminders: links.remindersOf(hw),
+              onEdit: isReminder(hw) && hw.deleteable && !vm.noInternet
+                  ? () => _edit(context, hw)
+                  : null,
+              onAddNote: !isReminder(hw) &&
+                      vm.showAddReminder &&
+                      !vm.noInternet &&
+                      !hw.deleted
+                  ? () => _addNote(context, hw)
+                  : null,
+              onEditLinked: vm.noInternet ? null : (r) => _edit(context, r),
+              onRemoveLinked:
+                  vm.noInternet ? null : (r) => removeReminderCallback(r, day),
+              onToggleLinked: vm.noInternet
+                  ? null
+                  : (r) => toggleDoneCallback(r, !r.checked),
+            ),
       ],
     );
   }
@@ -703,6 +780,19 @@ class ItemWidget extends StatelessWidget {
   final AutoScrollController? controller;
   final int? index;
 
+  /// Own reminders that belong to this entry, shown inside its card (#10).
+  final List<Homework> linkedReminders;
+
+  /// Edits this reminder (#11). Null for anything that is not one.
+  final VoidCallback? onEdit;
+
+  /// Adds a reminder that belongs to this entry.
+  final VoidCallback? onAddNote;
+
+  final void Function(Homework reminder)? onEditLinked;
+  final void Function(Homework reminder)? onRemoveLinked;
+  final void Function(Homework reminder)? onToggleLinked;
+
   const ItemWidget({
     super.key,
     required this.item,
@@ -722,7 +812,17 @@ class ItemWidget extends StatelessWidget {
     required this.colorBorder,
     required this.subjectThemes,
     required this.colorTestsInRed,
+    this.linkedReminders = const [],
+    this.onEdit,
+    this.onAddNote,
+    this.onEditLinked,
+    this.onRemoveLinked,
+    this.onToggleLinked,
   });
+
+  /// The text to show: a reminder without the tag that links it.
+  String get _subtitle =>
+      isReminder(item) ? reminderTextOf(item.subtitle) : item.subtitle;
 
   Future<Tuple2<bool, bool>> _showConfirmDelete(BuildContext context) async {
     var ask = true;
@@ -879,9 +979,9 @@ class ItemWidget extends StatelessWidget {
                           ListTile(
                             contentPadding: EdgeInsets.zero,
                             title: Text(item.title),
-                            subtitle: item.subtitle.isNullOrEmpty
+                            subtitle: _subtitle.isNullOrEmpty
                                 ? null
-                                : SelectableText(item.subtitle),
+                                : SelectableText(_subtitle),
                             leading:
                                 !isHistory && !isDeletedView && item.deleteable
                                     ? IconButton(
@@ -932,16 +1032,17 @@ class ItemWidget extends StatelessWidget {
                                     padding: EdgeInsets.zero,
                                     badgeColor: isDeletedView
                                         ? Theme.of(context)
-                                            .dialogTheme
-                                            .backgroundColor ??
+                                                .dialogTheme
+                                                .backgroundColor ??
                                             Theme.of(context)
                                                 .scaffoldBackgroundColor
                                         : Theme.of(context)
                                             .scaffoldBackgroundColor,
                                     elevation: 0,
                                   ),
-                                  badgeAnimation: const badge.BadgeAnimation
-                                      .slide(toAnimate: false),
+                                  badgeAnimation:
+                                      const badge.BadgeAnimation.slide(
+                                          toAnimate: false),
                                   child: const Icon(
                                     Icons.info_outline,
                                   ),
@@ -973,10 +1074,31 @@ class ItemWidget extends StatelessWidget {
                                   toggleDone!();
                                 },
                         ),
+                      if (!isHistory && !isDeletedView && onEdit != null)
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          tooltip: "Bearbeiten",
+                          onPressed: onEdit,
+                        ),
+                      if (!isHistory && !isDeletedView && onAddNote != null)
+                        IconButton(
+                          icon: const Icon(Icons.note_add_outlined),
+                          tooltip: "Eigene Notiz dazu",
+                          onPressed: onAddNote,
+                        ),
                     ],
                   ),
                 ],
               ),
+              if (!isHistory && !isDeletedView && linkedReminders.isNotEmpty)
+                _LinkedReminders(
+                  reminders: linkedReminders,
+                  // Ticked together with the entry when it can be ticked.
+                  ownCheckboxes: !item.checkable,
+                  onEdit: onEditLinked,
+                  onRemove: onRemoveLinked,
+                  onToggle: onToggleLinked,
+                ),
               if (isHistory || isDeletedView) ...[
                 const Divider(height: 0),
                 Padding(
@@ -1100,13 +1222,86 @@ class AttachmentWidget extends StatelessWidget {
               name: ggs.originalName,
               enabled: ggs.fileAvailable || !noInternet,
               onOpen: () => openCallback(ggs),
-              onSaveAs: saveAsCallback == null ? null : () => saveAsCallback!(ggs),
+              onSaveAs:
+                  saveAsCallback == null ? null : () => saveAsCallback!(ggs),
               onCopy: copyCallback == null ? null : () => copyCallback!(ggs),
             ),
           ),
           AnimatedLinearProgressIndicator(show: ggs.downloading),
         ],
       ),
+    );
+  }
+}
+
+/// The own notes inside an entry's card.
+class _LinkedReminders extends StatelessWidget {
+  const _LinkedReminders({
+    required this.reminders,
+    required this.ownCheckboxes,
+    this.onEdit,
+    this.onRemove,
+    this.onToggle,
+  });
+
+  final List<Homework> reminders;
+
+  /// Whether each note gets its own checkbox. Not when the entry has one:
+  /// then ticking the entry ticks them all.
+  final bool ownCheckboxes;
+  final void Function(Homework reminder)? onEdit;
+  final void Function(Homework reminder)? onRemove;
+  final void Function(Homework reminder)? onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        const Divider(height: 1),
+        for (final reminder in reminders)
+          Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.sticky_note_2_outlined,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SelectableText(
+                    reminderTextOf(reminder.subtitle),
+                    style: reminder.checked
+                        ? const TextStyle(
+                            decoration: TextDecoration.lineThrough)
+                        : null,
+                  ),
+                ),
+                if (ownCheckboxes && reminder.checkable)
+                  Checkbox(
+                    activeColor: Colors.green,
+                    value: reminder.checked,
+                    onChanged:
+                        onToggle == null ? null : (_) => onToggle!(reminder),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  tooltip: "Bearbeiten",
+                  onPressed: onEdit == null ? null : () => onEdit!(reminder),
+                ),
+                if (reminder.deleteable)
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    tooltip: "Löschen",
+                    onPressed:
+                        onRemove == null ? null : () => onRemove!(reminder),
+                  ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

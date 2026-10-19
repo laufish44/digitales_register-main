@@ -45,6 +45,16 @@ class DaysContainer extends StatelessWidget {
               ),
             );
           },
+          editReminderCallback: (reminder, day, text) {
+            actions.dashboardActions.editReminder(
+              EditReminderPayload(
+                (b) => b
+                  ..reminder.replace(reminder)
+                  ..msg = text
+                  ..date = day.date,
+              ),
+            );
+          },
           removeReminderCallback: (hw, day) {
             actions.dashboardActions.deleteHomework(hw);
           },

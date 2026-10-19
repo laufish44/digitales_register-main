@@ -22,6 +22,7 @@ final _dashboardMiddleware = MiddlewareBuilder<AppState, AppStateBuilder,
   ..add(DashboardActionsNames.load, _loadDays)
   ..add(DashboardActionsNames.switchFuture, _switchFuture)
   ..add(DashboardActionsNames.addReminder, _addReminder)
+  ..add(DashboardActionsNames.editReminder, _editReminder)
   ..add(DashboardActionsNames.deleteHomework, _deleteHomework)
   ..add(DashboardActionsNames.toggleDone, _toggleDone)
   ..add(DashboardActionsNames.openAttachment, _openAttachment)
@@ -85,6 +86,50 @@ Future<void> _addReminder(
         ..date = action.payload.date,
     ),
   );
+}
+
+/// The register has no way to change a reminder, so the new text is saved as a
+/// new one first and only then the old one is deleted — a failure leaves the
+/// old reminder as it was rather than losing it. A ticked reminder stays
+/// ticked.
+Future<void> _editReminder(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+    ActionHandler next,
+    Action<EditReminderPayload> action) async {
+  await next(action);
+  final old = action.payload.reminder;
+  final dynamic result = await wrapper.send(
+    "api/student/dashboard/save_reminder",
+    args: {
+      "date": DateFormat("yyyy-MM-dd").format(action.payload.date),
+      "text": action.payload.msg,
+    },
+  );
+  final saved = getMap(result);
+  if (saved == null || saved["id"] == null) {
+    if (!wrapper.noInternet) {
+      showSnackBar("Die Erinnerung konnte nicht geändert werden");
+    }
+    return;
+  }
+  await api.actions.dashboardActions.homeworkAdded(
+    HomeworkAddedPayload(
+      (b) => b
+        ..data = saved
+        ..date = action.payload.date,
+    ),
+  );
+  await api.actions.dashboardActions.deleteHomework(old);
+  if (old.checked) {
+    await api.actions.dashboardActions.toggleDone(
+      ToggleDonePayload(
+        (b) => b
+          ..homeworkId = getInt(saved["id"])!
+          ..type = old.type.name
+          ..done = true,
+      ),
+    );
+  }
 }
 
 Future<void> _deleteHomework(

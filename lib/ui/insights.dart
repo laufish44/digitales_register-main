@@ -120,6 +120,10 @@ class _GradeTrendCardState extends State<GradeTrendCard> {
 
   int targetWeight = 100;
 
+  /// How many grades are still to come; 0 lets the plan take as few as it
+  /// can.
+  int upcomingGrades = 0;
+
   double get target =>
       _dragging ??
       (widget.target != null ? widget.target! / 100 : _defaultTarget);
@@ -138,10 +142,11 @@ class _GradeTrendCardState extends State<GradeTrendCard> {
     final spread = GradeStats.spread(grades);
     final improvement = GradeStats.improvement(grades);
     final byType = GradeStats.averageByType(grades);
-    final required = GradeStats.requiredGradeForTarget(
+    final plan = GradeStats.planForTarget(
       grades: grades,
       target: target * 100,
       newWeightPercentage: targetWeight,
+      count: upcomingGrades == 0 ? null : upcomingGrades,
     );
 
     return Card(
@@ -247,52 +252,117 @@ class _GradeTrendCardState extends State<GradeTrendCard> {
                 ),
               ],
             ),
-            Row(
+            Wrap(
+              spacing: 16,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const Text("Gewichtung"),
-                const SizedBox(width: 12),
-                DropdownButton<int>(
-                  value: targetWeight,
-                  items: const [
-                    DropdownMenuItem(value: 50, child: Text("50 %")),
-                    DropdownMenuItem(value: 100, child: Text("100 %")),
-                    DropdownMenuItem(value: 200, child: Text("200 %")),
-                    DropdownMenuItem(value: 300, child: Text("300 %")),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("Noch ausstehend"),
+                    const SizedBox(width: 12),
+                    DropdownButton<int>(
+                      value: upcomingGrades,
+                      items: [
+                        const DropdownMenuItem(
+                          value: 0,
+                          child: Text("so wenige wie nötig"),
+                        ),
+                        for (var n = 1; n <= 8; n++)
+                          DropdownMenuItem(
+                            value: n,
+                            child: Text(n == 1 ? "1 Note" : "$n Noten"),
+                          ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => upcomingGrades = value ?? 0),
+                    ),
                   ],
-                  onChanged: (value) =>
-                      setState(() => targetWeight = value ?? 100),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("Gewichtung je Note"),
+                    const SizedBox(width: 12),
+                    DropdownButton<int>(
+                      value: targetWeight,
+                      items: const [
+                        DropdownMenuItem(value: 50, child: Text("50 %")),
+                        DropdownMenuItem(value: 100, child: Text("100 %")),
+                        DropdownMenuItem(value: 200, child: Text("200 %")),
+                        DropdownMenuItem(value: 300, child: Text("300 %")),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => targetWeight = value ?? 100),
+                    ),
+                  ],
                 ),
               ],
             ),
             const SizedBox(height: 4),
-            if (required == null)
-              const Text("Noch keine Noten für eine Berechnung.")
-            else if (required > 1000)
-              Text(
-                "Mit einer einzelnen Note nicht mehr erreichbar "
-                "(nötig wäre ${_format(required)}).",
-                style: TextStyle(color: theme.colorScheme.error),
-              )
-            else if (required <= 100)
-              Text(
-                "Das Ziel ist auch mit der schlechtesten Note noch sicher.",
-                style: const TextStyle(color: Colors.green),
-              )
-            else
-              Text.rich(
-                TextSpan(
-                  text: "Du brauchst mindestens ",
-                  children: [
-                    TextSpan(
-                      text: _format(required),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const TextSpan(text: ", um den Schnitt zu erreichen."),
-                  ],
-                ),
-              ),
+            _PlanText(plan: plan, fixedCount: upcomingGrades != 0),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// What the grades still to come need, in words.
+class _PlanText extends StatelessWidget {
+  const _PlanText({required this.plan, required this.fixedCount});
+
+  final GradePlan? plan;
+
+  /// Whether the number of grades was picked, rather than worked out.
+  final bool fixedCount;
+
+  static String _format(double scaledByHundred) =>
+      gradeAverageFormat.format(scaledByHundred / 100);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final plan = this.plan;
+    if (plan == null)
+      return const Text("Noch keine Noten für eine Berechnung.");
+    final grades = plan.count == 1 ? "einer Note" : "${plan.count} Noten";
+    if (plan.alreadySafe) {
+      return const Text(
+        "Das Ziel ist auch mit den schlechtesten Noten noch sicher.",
+        style: TextStyle(color: Colors.green),
+      );
+    }
+    if (!plan.reachable) {
+      return Text(
+        fixedCount
+            ? "Mit $grades nicht erreichbar: nötig wäre im Schnitt "
+                "${_format(plan.average)}."
+            : "Auch mit $grades lauter Zehnern nicht erreichbar.",
+        style: TextStyle(color: theme.colorScheme.error),
+      );
+    }
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: plan.count == 1
+                ? "Du brauchst mindestens "
+                : "Mit $grades brauchst du im Schnitt mindestens ",
+          ),
+          TextSpan(
+            text: _format(plan.average),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          if (plan.count > 1) ...[
+            const TextSpan(text: ", zum Beispiel "),
+            TextSpan(
+              text: plan.grades.map(formatGradeFromInt).join(" · "),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+          const TextSpan(text: "."),
+        ],
       ),
     );
   }

@@ -27,6 +27,7 @@ import 'dart:math' as math;
 
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
+import 'package:dr/reminder_links.dart' show reminderTextOf;
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart' show toMonday;
 
@@ -155,6 +156,71 @@ class GradeStats {
     return (target * total - sum) / newWeightPercentage;
   }
 
+  /// What [count] more grades, each weighted [newWeightPercentage], need to
+  /// bring the average to [target] (#12).
+  ///
+  /// Without a [count] the plan takes as few grades as it can — the smallest
+  /// number (up to [maxCount]) with which the target is still reachable. That
+  /// answers the question better than "you need a 13".
+  ///
+  /// Grades, [target] and the result are scaled by 100. Null when the existing
+  /// grades carry no weight.
+  static GradePlan? planForTarget({
+    required Iterable<GradeAll> grades,
+    required double target,
+    int newWeightPercentage = 100,
+    int? count,
+    int maxCount = 8,
+  }) {
+    if (newWeightPercentage <= 0) return null;
+    var sum = 0, weight = 0;
+    for (final grade in grades.where(countsTowardsAverage)) {
+      sum += grade.grade! * grade.weightPercentage;
+      weight += grade.weightPercentage;
+    }
+    if (weight == 0) return null;
+
+    double neededAverage(int n) =>
+        (target * (weight + n * newWeightPercentage) - sum) /
+        (n * newWeightPercentage);
+
+    var n = count ?? 1;
+    if (count == null) {
+      while (n < maxCount && neededAverage(n) > _bestGrade) {
+        n++;
+      }
+    }
+    final average = neededAverage(n);
+    return GradePlan(
+      count: n,
+      average: average,
+      grades: average > _bestGrade || average <= _worstGrade
+          ? const []
+          : _combination(n, average),
+    );
+  }
+
+  static const _bestGrade = 1000;
+  static const _worstGrade = 100;
+
+  /// [n] grades in quarter steps that together reach [average]: as many tens
+  /// as needed and the rest in one grade — "10, 10 and an 8" is easier to
+  /// picture than "three times 9.33".
+  static List<int> _combination(int n, double average) {
+    // Quarter steps, rounded up so the combination never falls short.
+    var remaining = ((average * n) / 25 - 1e-9).ceil() * 25;
+    final result = <int>[];
+    for (var left = n; left > 0; left--) {
+      final grade = math.max(
+        _worstGrade,
+        math.min(_bestGrade, remaining - _worstGrade * (left - 1)),
+      );
+      result.add(grade);
+      remaining -= grade;
+    }
+    return result;
+  }
+
   /// The average if the next grade were [grade] with [newWeightPercentage].
   static double? averageWith({
     required Iterable<GradeAll> grades,
@@ -209,6 +275,29 @@ class GradeStats {
     if (first == null || second == null) return null;
     return (second - first) / 100;
   }
+}
+
+/// How to get to a target average, see [GradeStats.planForTarget].
+class GradePlan {
+  const GradePlan({
+    required this.count,
+    required this.average,
+    required this.grades,
+  });
+
+  /// How many more grades the plan counts on.
+  final int count;
+
+  /// The average those grades need, scaled by 100. Above 1000 the target is
+  /// out of reach with [count] grades; 100 or less means it is safe anyway.
+  final double average;
+
+  /// One way to get there, best grade first, each scaled by 100. Empty when
+  /// the target is out of reach or already safe.
+  final List<int> grades;
+
+  bool get reachable => average <= 1000;
+  bool get alreadySafe => average <= 100;
 }
 
 class AveragePoint {
@@ -1041,7 +1130,10 @@ class Agenda {
           UpcomingExam(
             name: homework.title,
             subject: homework.label ?? "",
-            typeName: homework.subtitle,
+            // A reminder linked to an entry carries a tag; it is not text.
+            typeName: isReminder
+                ? reminderTextOf(homework.subtitle)
+                : homework.subtitle,
             deadline: day.date,
             isExam: isExam && !isReminder,
             isReminder: isReminder,

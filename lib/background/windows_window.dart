@@ -35,6 +35,7 @@ const _mainWindowProperty = "DigitalesRegisterMainWindow";
 const _windowClass = "FLUTTER_RUNNER_WIN32_WINDOW";
 
 const _swRestore = 9;
+const _wmClose = 0x0010;
 const _asfwAny = 0xFFFFFFFF;
 const _regSz = 1;
 
@@ -56,6 +57,9 @@ final _showWindow = _user32.lookupFunction<Int32 Function(IntPtr, Int32),
 final _setForegroundWindow =
     _user32.lookupFunction<Int32 Function(IntPtr), int Function(int)>(
         "SetForegroundWindow");
+final _postMessage = _user32.lookupFunction<
+    Int32 Function(IntPtr, Uint32, IntPtr, IntPtr),
+    int Function(int, int, int, int)>("PostMessageW");
 final _allowSetForegroundWindow =
     _user32.lookupFunction<Int32 Function(Uint32), int Function(int)>(
         "AllowSetForegroundWindow");
@@ -77,6 +81,18 @@ int _findMainWindow() {
       if (_getProp(window, property) != 0) return window;
     }
   });
+}
+
+/// Closes the app's window the way its close button does (#14: Ctrl+W), so
+/// everything that happens on closing still happens.
+void closeMainWindow() {
+  if (!Platform.isWindows) return;
+  try {
+    final window = _findMainWindow();
+    if (window != 0) _postMessage(window, _wmClose, 0, 0);
+  } catch (e, trace) {
+    log("could not close the window", error: e, stackTrace: trace);
+  }
 }
 
 /// Brings the app to the front, starting it when it is not open.

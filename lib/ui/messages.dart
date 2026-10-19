@@ -203,65 +203,74 @@ class _MessageWidgetState extends State<MessageWidget> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text.rich(
-                TextSpan(
+              // Header and text can be selected and copied (#13); the
+              // buttons below stay plain buttons.
+              SelectionArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const TextSpan(
-                      text: "Gesendet: ",
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          const TextSpan(
+                            text: "Gesendet: ",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          TextSpan(
+                              text: DateFormat("d.M.yy H:mm")
+                                  .format(widget.message.timeSent))
+                        ],
+                      ),
                     ),
-                    TextSpan(
-                        text: DateFormat("d.M.yy H:mm")
-                            .format(widget.message.timeSent))
-                  ],
-                ),
-              ),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    const TextSpan(
-                      text: "Von: ",
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          const TextSpan(
+                            text: "Von: ",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          TextSpan(text: widget.message.fromName)
+                        ],
+                      ),
                     ),
-                    TextSpan(text: widget.message.fromName)
-                  ],
-                ),
-              ),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    const TextSpan(
-                      text: "An: ",
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          const TextSpan(
+                            text: "An: ",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          TextSpan(text: widget.message.recipientString)
+                        ],
+                      ),
                     ),
-                    TextSpan(text: widget.message.recipientString)
-                  ],
-                ),
-              ),
-              if (widget.message.needsAction)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.pending_actions,
-                          size: 18, color: Colors.orange),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          widget.message.responseRequired &&
-                                  widget.message.response == null
-                              ? "Diese Mitteilung erwartet eine Antwort. "
-                                  "Bitte über die Website beantworten."
-                              : "Diese Mitteilung muss noch unterschrieben "
-                                  "werden. Bitte über die Website erledigen.",
-                          style: Theme.of(context).textTheme.bodySmall,
+                    if (widget.message.needsAction)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.pending_actions,
+                                size: 18, color: Colors.orange),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                widget.message.responseRequired &&
+                                        widget.message.response == null
+                                    ? "Diese Mitteilung erwartet eine Antwort. "
+                                        "Bitte über die Website beantworten."
+                                    : "Diese Mitteilung muss noch unterschrieben "
+                                        "werden. Bitte über die Website erledigen.",
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    const Divider(),
+                    renderMessage(widget.message.text, context),
+                  ],
                 ),
-              const Divider(),
-              renderMessage(widget.message.text, context),
+              ),
               if (widget.message.attachments.isNotEmpty) ...[
                 const Divider(),
                 Text(
@@ -278,8 +287,7 @@ class _MessageWidgetState extends State<MessageWidget> {
                       name: attachment.originalName,
                       // Without the file cached there is nothing to open, save
                       // or copy until it can be fetched.
-                      enabled:
-                          attachment.fileAvailable || !widget.noInternet,
+                      enabled: attachment.fileAvailable || !widget.noInternet,
                       onOpen: () => widget.onOpenFile(attachment),
                       onSaveAs: () => widget.onSaveFileAs(attachment),
                       onCopy: () => widget.onCopyFile(attachment),
@@ -321,8 +329,7 @@ class _MessageWidgetState extends State<MessageWidget> {
   }
 
   Future<void> _compose(ComposeMode mode) async {
-    if (await showComposeMessage(context,
-        mode: mode, source: widget.message)) {
+    if (await showComposeMessage(context, mode: mode, source: widget.message)) {
       widget.onMessageSent();
     }
   }
