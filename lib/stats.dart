@@ -27,7 +27,7 @@ import 'dart:math' as math;
 
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
-import 'package:dr/reminder_links.dart' show reminderTextOf;
+import 'package:dr/reminder_links.dart' show linkKeyIn, reminderTextOf;
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart' show toMonday;
 
@@ -1036,6 +1036,8 @@ class ExamCountdown {
             entry.deadline.year, entry.deadline.month, entry.deadline.day);
         if (due.isBefore(today) || due.isAfter(lastDay)) return false;
         if (!includeDone && done.contains(entry.identity)) return false;
+        // Shown inside its entry; on its own it would only repeat the entry.
+        if (entry.isNote) return false;
         return entry.matches(
           includeExams: includeExams,
           includeHomework: includeHomework,
@@ -1137,6 +1139,7 @@ class Agenda {
             deadline: day.date,
             isExam: isExam && !isReminder,
             isReminder: isReminder,
+            isNote: isReminder && linkKeyIn(homework.subtitle) != null,
             warning: homework.warning,
             done: homework.checkable && homework.checked,
           ),
@@ -1206,6 +1209,7 @@ class UpcomingExam {
     required this.isExam,
     required this.warning,
     this.isReminder = false,
+    this.isNote = false,
     this.done = false,
   });
 
@@ -1216,6 +1220,10 @@ class UpcomingExam {
   /// A note the user wrote themselves rather than something a teacher entered.
   /// Kept apart from homework so it can be shown even when homework is not.
   final bool isReminder;
+
+  /// A reminder written as a note to a teacher's entry (#10). It is part of
+  /// that entry, so it never counts as something coming up of its own.
+  final bool isNote;
 
   /// Ticked off on the dashboard. Such entries drop out of the cards.
   final bool done;

@@ -20,6 +20,7 @@ import 'package:dr/app_state.dart';
 import 'package:dr/container/sidebar_container.dart' show firstWeekdayFrom;
 import 'package:dr/data.dart';
 import 'package:dr/reducer/settings.dart';
+import 'package:dr/reminder_links.dart';
 import 'package:dr/school_year.dart';
 import 'package:dr/search.dart';
 import 'package:dr/stats.dart';
@@ -274,6 +275,38 @@ void main() {
         includeReminders: false,
       );
       expect(entries, isEmpty);
+    });
+
+    test("a note to a teacher's entry is never coming up on its own", () {
+      final exam = _dashboardEntry(
+        id: 4711,
+        title: "Schularbeit",
+        warning: true,
+        type: HomeworkType.gradeGroup,
+      );
+      final note = _dashboardEntry(
+        id: 1,
+        title: "Erinnerung",
+        subtitle: linkedReminderText("Taschenrechner", exam),
+        type: HomeworkType.homework,
+      );
+      final entries = ExamCountdown.upcoming(
+        CalendarState(),
+        dashboard: _dashboard({
+          UtcDateTime(2026, 3, 12): [
+            exam,
+            note,
+            _dashboardEntry(
+                id: 2, title: "Zahnarzt", type: HomeworkType.homework),
+          ],
+          // Its entry gone: still a note, still not on its own.
+          UtcDateTime(2026, 3, 13): [note],
+        }),
+        now: _today,
+        includeHomework: true,
+      );
+      expect(entries.map((e) => e.name),
+          unorderedEquals(["Schularbeit", "Zahnarzt"]));
     });
 
     test("includes the last day of the window", () {

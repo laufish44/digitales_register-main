@@ -908,6 +908,85 @@ class ItemWidget extends StatelessWidget {
     return const Tuple2(Colors.grey, 0);
   }
 
+  /// The buttons on the right of the card, one row each.
+  ///
+  /// Editing and adding a note go into the first row, left of what is already
+  /// there, so they make the card a little wider instead of taller.
+  List<Widget> _sideButtons(BuildContext context) {
+    final rows = <Widget>[
+      if (!isHistory && item.label != null)
+        IconButton(
+          icon: (isDeletedView
+                      ? item.previousVersion!.previousVersion
+                      : item.previousVersion) !=
+                  null
+              ? badge.Badge(
+                  badgeContent: const Icon(Icons.edit, size: 15),
+                  badgeStyle: badge.BadgeStyle(
+                    padding: EdgeInsets.zero,
+                    badgeColor: isDeletedView
+                        ? Theme.of(context).dialogTheme.backgroundColor ??
+                            Theme.of(context).scaffoldBackgroundColor
+                        : Theme.of(context).scaffoldBackgroundColor,
+                    elevation: 0,
+                  ),
+                  badgeAnimation:
+                      const badge.BadgeAnimation.slide(toAnimate: false),
+                  child: const Icon(
+                    Icons.info_outline,
+                  ),
+                )
+              : const Icon(
+                  Icons.info_outline,
+                ),
+          onPressed: () {
+            _showHistory(context);
+          },
+        ),
+      if (item.type == HomeworkType.grade)
+        Padding(
+          padding: const EdgeInsets.only(right: 8.0),
+          child: Text(
+            item.gradeFormatted!,
+            style: const TextStyle(color: Colors.green, fontSize: 30),
+          ),
+        )
+      else if (!isHistory && !isDeletedView && item.checkable)
+        Checkbox(
+          visualDensity: VisualDensity.standard,
+          activeColor: Colors.green,
+          value: item.checked,
+          onChanged: noInternet
+              ? null
+              : (done) {
+                  toggleDone!();
+                },
+        ),
+    ];
+    final actions = <Widget>[
+      if (!isHistory && !isDeletedView && onEdit != null)
+        IconButton(
+          icon: const Icon(Icons.edit_outlined),
+          tooltip: "Bearbeiten",
+          onPressed: onEdit,
+        ),
+      if (!isHistory && !isDeletedView && onAddNote != null)
+        IconButton(
+          icon: const Icon(Icons.note_add_outlined),
+          tooltip: "Eigene Notiz dazu",
+          onPressed: onAddNote,
+        ),
+    ];
+    if (actions.isEmpty) return rows;
+    return [
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [...actions, ...rows.take(1)],
+      ),
+      ...rows.skip(1),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget child = Deleteable(
@@ -1018,75 +1097,7 @@ class ItemWidget extends StatelessWidget {
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
-                    children: <Widget>[
-                      if (!isHistory && item.label != null)
-                        IconButton(
-                          icon: (isDeletedView
-                                      ? item.previousVersion!.previousVersion
-                                      : item.previousVersion) !=
-                                  null
-                              ? badge.Badge(
-                                  badgeContent:
-                                      const Icon(Icons.edit, size: 15),
-                                  badgeStyle: badge.BadgeStyle(
-                                    padding: EdgeInsets.zero,
-                                    badgeColor: isDeletedView
-                                        ? Theme.of(context)
-                                                .dialogTheme
-                                                .backgroundColor ??
-                                            Theme.of(context)
-                                                .scaffoldBackgroundColor
-                                        : Theme.of(context)
-                                            .scaffoldBackgroundColor,
-                                    elevation: 0,
-                                  ),
-                                  badgeAnimation:
-                                      const badge.BadgeAnimation.slide(
-                                          toAnimate: false),
-                                  child: const Icon(
-                                    Icons.info_outline,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.info_outline,
-                                ),
-                          onPressed: () {
-                            _showHistory(context);
-                          },
-                        ),
-                      if (item.type == HomeworkType.grade)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Text(
-                            item.gradeFormatted!,
-                            style: const TextStyle(
-                                color: Colors.green, fontSize: 30),
-                          ),
-                        )
-                      else if (!isHistory && !isDeletedView && item.checkable)
-                        Checkbox(
-                          visualDensity: VisualDensity.standard,
-                          activeColor: Colors.green,
-                          value: item.checked,
-                          onChanged: noInternet
-                              ? null
-                              : (done) {
-                                  toggleDone!();
-                                },
-                        ),
-                      if (!isHistory && !isDeletedView && onEdit != null)
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          tooltip: "Bearbeiten",
-                          onPressed: onEdit,
-                        ),
-                      if (!isHistory && !isDeletedView && onAddNote != null)
-                        IconButton(
-                          icon: const Icon(Icons.note_add_outlined),
-                          tooltip: "Eigene Notiz dazu",
-                          onPressed: onAddNote,
-                        ),
-                    ],
+                    children: _sideButtons(context),
                   ),
                 ],
               ),
