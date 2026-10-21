@@ -217,13 +217,11 @@ const _ofnExplorer = 0x00080000;
 /// Longest path the dialog may hand back.
 const _maxPath = 32768;
 
-typedef _GetSaveFileNameNative = Int32 Function(Pointer<_OpenFileNameW>);
-typedef _GetSaveFileNameDart = int Function(Pointer<_OpenFileNameW>);
-
 /// Shows the dialog and returns the chosen path, or null when it was cancelled.
 String? _askWhereToSave(String suggestedName) {
-  final getSaveFileName = DynamicLibrary.open("comdlg32.dll")
-      .lookupFunction<_GetSaveFileNameNative, _GetSaveFileNameDart>(
+  final getSaveFileName = DynamicLibrary.open("comdlg32.dll").lookupFunction<
+      Int32 Function(Pointer<_OpenFileNameW>),
+      int Function(Pointer<_OpenFileNameW>)>(
     "GetSaveFileNameW",
   );
 
@@ -330,9 +328,8 @@ bool _putFileOnWindowsClipboard(String path) {
   final user32 = DynamicLibrary.open("user32.dll");
   final kernel32 = DynamicLibrary.open("kernel32.dll");
 
-  final openClipboard =
-      user32.lookupFunction<Int32 Function(Pointer<Void>), int Function(Pointer<Void>)>(
-          "OpenClipboard");
+  final openClipboard = user32.lookupFunction<Int32 Function(Pointer<Void>),
+      int Function(Pointer<Void>)>("OpenClipboard");
   final emptyClipboard =
       user32.lookupFunction<Int32 Function(), int Function()>("EmptyClipboard");
   final setClipboardData = user32.lookupFunction<

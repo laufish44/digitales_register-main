@@ -170,7 +170,7 @@ class Search {
           title: entry.name,
           subtitle: [
             entry.subject,
-            entry.isExam ? "Prüfung" : "Hausaufgabe",
+            if (entry.isExam) "Prüfung" else "Hausaufgabe",
             _formatDate(entry.deadline),
           ].where((s) => s.isNotEmpty).join(" · "),
           score: score,

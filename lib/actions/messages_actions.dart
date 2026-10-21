@@ -48,7 +48,8 @@ abstract class MessagesActions extends ReduxActions {
 abstract class MarkedAsReadPayload
     implements Built<MarkedAsReadPayload, MarkedAsReadPayloadBuilder> {
   factory MarkedAsReadPayload(
-      [void Function(MarkedAsReadPayloadBuilder)? updates]) = _$MarkedAsReadPayload;
+          [void Function(MarkedAsReadPayloadBuilder)? updates]) =
+      _$MarkedAsReadPayload;
   MarkedAsReadPayload._();
 
   int get id;

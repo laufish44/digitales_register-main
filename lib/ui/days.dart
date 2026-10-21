@@ -32,6 +32,7 @@ import 'package:dr/ui/animated_linear_progress_indicator.dart';
 import 'package:dr/ui/attachment_actions.dart';
 import 'package:dr/ui/dialog.dart';
 import 'package:dr/ui/last_fetched_overlay.dart';
+import 'package:dr/ui/link_text.dart';
 import 'package:dr/ui/no_internet.dart';
 import 'package:dr/ui/search_page.dart';
 import 'package:dr/utc_date_time.dart';
@@ -540,38 +541,44 @@ class DayWidget extends StatelessWidget {
       builder: (context) {
         String message = initial;
         final controller = TextEditingController(text: initial);
-        return StatefulBuilder(
-          builder: (context, setState) => InfoDialog(
-            title: Text(title),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              maxLines: null,
-              onChanged: (msg) {
-                setState(() => message = msg);
-              },
-              decoration: const InputDecoration(hintText: 'zB. Hausaufgabe'),
-            ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
+        return StatefulBuilder(builder: (context, setState) {
+          final save = message.trim().isEmpty || message == initial
+              ? null
+              : () => Navigator.pop(context, message);
+          return SubmitShortcut(
+            onSubmit: save,
+            child: InfoDialog(
+              title: Text(title),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                maxLines: null,
+                textCapitalization: TextCapitalization.sentences,
+                onChanged: (msg) {
+                  setState(() => message = msg);
                 },
-                child: const Text("Abbrechen"),
-              ),
-              ElevatedButton(
-                onPressed: message.trim().isEmpty || message == initial
-                    ? null
-                    : () {
-                        Navigator.pop(context, message);
-                      },
-                child: const Text(
-                  "Speichern",
+                decoration: InputDecoration(
+                  hintText: 'zB. Hausaufgabe',
+                  helperText: submitShortcutHint,
                 ),
               ),
-            ],
-          ),
-        );
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Abbrechen"),
+                ),
+                ElevatedButton(
+                  onPressed: save,
+                  child: const Text(
+                    "Speichern",
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
       },
     );
   }
@@ -1060,7 +1067,7 @@ class ItemWidget extends StatelessWidget {
                             title: Text(item.title),
                             subtitle: _subtitle.isNullOrEmpty
                                 ? null
-                                : SelectableText(_subtitle),
+                                : LinkText(_subtitle),
                             leading:
                                 !isHistory && !isDeletedView && item.deleteable
                                     ? IconButton(
@@ -1282,7 +1289,7 @@ class _LinkedReminders extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: SelectableText(
+                  child: LinkText(
                     reminderTextOf(reminder.subtitle),
                     style: reminder.checked
                         ? const TextStyle(

@@ -201,20 +201,20 @@ void main() {
   group("GradeStats.trendPerMonth", () {
     test("is positive when grades improve", () {
       final trend = GradeStats.trendPerMonth([
-        _grade(500, day: 1),
+        _grade(500),
         _grade(700, day: 15),
         _grade(900, day: 31),
       ]);
       expect(trend, isNotNull);
-      expect(trend!, greaterThan(0));
+      expect(trend, greaterThan(0));
     });
 
     test("is negative when grades get worse", () {
       final trend = GradeStats.trendPerMonth([
-        _grade(900, day: 1),
+        _grade(900),
         _grade(600, day: 20),
       ]);
-      expect(trend!, lessThan(0));
+      expect(trend, lessThan(0));
     });
 
     test("is null with a single grade or a single day", () {
@@ -229,7 +229,7 @@ void main() {
   test("GradeStats.runningAverage follows the grades chronologically", () {
     final points = GradeStats.runningAverage([
       _grade(1000, day: 5),
-      _grade(600, day: 1),
+      _grade(600),
     ]);
     expect(points.length, 2);
     expect(points.first.average, 600, reason: "oldest grade comes first");
@@ -238,7 +238,7 @@ void main() {
 
   test("GradeStats.averageByType splits by type", () {
     final byType = GradeStats.averageByType([
-      _grade(1000, type: "Schularbeit"),
+      _grade(1000),
       _grade(600, type: "Test"),
       _grade(800, type: "Test"),
     ]);
@@ -256,7 +256,7 @@ void main() {
 
   test("GradeStats.improvement compares both halves", () {
     final improvement = GradeStats.improvement([
-      _grade(500, day: 1),
+      _grade(500),
       _grade(500, day: 2),
       _grade(700, day: 3),
       _grade(700, day: 4),

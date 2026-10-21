@@ -102,9 +102,9 @@ class _VanishingListState extends State<VanishingList> {
         setState(() {
           // Only drop what is still gone: an id that came back in the meantime
           // is a live row again and must survive this cleanup.
-          final stillGone =
-              gone.where((id) => !_isCurrent(id)).toSet();
-          _shown = _shown.where((item) => !stillGone.contains(item.id)).toList();
+          final stillGone = gone.where((id) => !_isCurrent(id)).toSet();
+          _shown =
+              _shown.where((item) => !stillGone.contains(item.id)).toList();
           _leaving.removeAll(gone);
         });
       });

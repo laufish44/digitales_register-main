@@ -52,6 +52,8 @@ android {
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
+        // The widget gallery (WidgetGalleryActivity) is for debug builds only.
+        debug.java.srcDirs += 'src/debug/kotlin'
     }
 
 

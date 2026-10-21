@@ -130,16 +130,12 @@ class FutureAbsenceWidget extends StatelessWidget {
     switch (absence.justified) {
       case AbsenceJustified.justified:
         justifiedString = "Entschuldigt";
-        break;
       case AbsenceJustified.forSchool:
         justifiedString = "Im Auftrag der Schule (entschuldigt)";
-        break;
       case AbsenceJustified.notJustified:
         justifiedString = "Nicht entschuldigt";
-        break;
       default:
         justifiedString = "Noch nicht entschuldigt";
-        break;
     }
 
     const divider = Row(

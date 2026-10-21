@@ -1,0 +1,19 @@
+{
+  "calendarRevision": 2,
+  "schoolCalendars": {
+    "2026": {
+      "firstDay": "2026-09-07",
+      "lastDay": "2027-06-16",
+      "holidays": [
+        { "name": "Allerheiligenferien", "start": "2026-10-31", "end": "2026-11-08" },
+        { "name": "Maria Empfängnis", "start": "2026-12-05", "end": "2026-12-08" },
+        { "name": "Weihnachtsferien", "start": "2026-12-24", "end": "2027-01-06" },
+        { "name": "Faschingsferien", "start": "2027-02-05", "end": "2027-02-14" },
+        { "name": "Osterferien", "start": "2027-03-25", "end": "2027-03-30" },
+        { "name": "Pfingstmontag", "start": "2027-05-15", "end": "2027-05-17" },
+        { "name": "Tag der Republik", "start": "2027-06-02", "end": "2027-06-02" }
+      ]
+    }
+  },
+  "notices": []
+}

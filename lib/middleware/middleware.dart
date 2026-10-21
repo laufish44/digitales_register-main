@@ -48,16 +48,18 @@ import 'package:dr/data.dart';
 import 'package:dr/desktop.dart';
 import 'package:dr/file_actions.dart';
 import 'package:dr/file_opener.dart';
+import 'package:dr/home_widgets.dart';
 import 'package:dr/background/android_background.dart';
 import 'package:dr/background/windows_autostart.dart';
 import 'package:dr/main.dart';
 import 'package:dr/notifications/notification_service.dart';
 import 'package:dr/notifications/notification_store.dart';
 import 'package:dr/notifications/notification_watcher.dart';
+import 'package:dr/remote_config.dart';
 import 'package:dr/school_year.dart';
 import 'package:dr/serializers.dart';
+import 'package:dr/ui/app_banners.dart';
 import 'package:dr/ui/dialog.dart';
-import 'package:dr/ui/update_dialog.dart';
 import 'package:dr/update/update_service.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart';
@@ -94,6 +96,7 @@ List<Middleware<AppState, AppStateBuilder, AppActions>> middleware({
     [
       if (includeErrorMiddleware) _errorMiddleware,
       _saveStateMiddleware,
+      homeWidgetsMiddleware,
       (MiddlewareBuilder<AppState, AppStateBuilder, AppActions>()
             ..add(LoginActionsNames.updateLogout, _tap)
             ..add(SettingsActionsNames.saveNoData, _saveNoData)
@@ -385,6 +388,7 @@ Future<void> _loggedIn(MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
   }
   await startWatchingForNotifications(api);
   unawaited(_checkForUpdate(api));
+  unawaited(_refreshRemoteConfig());
   // Not awaited: it takes a minute or so and nothing on screen waits for it.
   if (!action.payload.offlineOnly) unawaited(prefetchWholeCalendar(api));
 }
@@ -411,9 +415,25 @@ Future<void> _checkForUpdate(
     return;
   }
   if (!result.hasUpdate) return;
-  final context = navigatorKey?.currentContext;
-  if (context == null || !context.mounted) return;
-  await showUpdateDialog(context, result.update!);
+  // A banner, not a dialog: the app stays usable, and "Später" is one tap.
+  showUpdateBanner(result.update!);
+}
+
+/// Fetches `remote/config.json` (school calendar, notices) once per session.
+/// The calendar is used from the next start on; notices show right away.
+var _remoteConfigFetched = false;
+
+Future<void> _refreshRemoteConfig() async {
+  if (_remoteConfigFetched) return;
+  _remoteConfigFetched = true;
+  final config = await RemoteConfig.refresh();
+  if (config == null) return;
+  final notices = await RemoteConfig.unseenNotices(
+    config,
+    platform: Platform.operatingSystem,
+    today: now,
+  );
+  if (notices.isNotEmpty) showRemoteNotices(notices);
 }
 
 var _saveUnderway = false;
@@ -563,8 +583,9 @@ Future<void> _refreshCurrentPage(
       refreshes.add(api.actions.absencesActions.load());
     case Pages.calendar:
       final monday = api.state.calendarState.currentMonday;
-      if (monday != null)
+      if (monday != null) {
         refreshes.add(api.actions.calendarActions.load(monday));
+      }
     case Pages.messages:
       refreshes.add(api.actions.messagesActions.load());
     case Pages.certificate:
@@ -592,7 +613,6 @@ Future<void> _start(
         await api.actions.loginActions.addAfterLoginCallback(
           () => api.actions.gradesActions.setSemester(Semester.first),
         );
-        break;
       case "2":
         await api.actions.loginActions.addAfterLoginCallback(
           () => api.actions.gradesActions.setSemester(Semester.second),
@@ -623,7 +643,6 @@ Future<void> _start(
           await redirectAfterLogin(
               parameters["redirect"]!.replaceFirst("#", ""), api);
         }
-        break;
       default:
         showSnackBar("Dieser Link konnte nicht geöffnet werden");
     }
@@ -642,27 +661,22 @@ Future<void> redirectAfterLogin(String location,
       await api.actions.loginActions.addAfterLoginCallback(
         api.actions.routingActions.showAbsences.call,
       );
-      break;
     case "calendar/student":
       await api.actions.loginActions.addAfterLoginCallback(
         api.actions.routingActions.showCalendar.call,
       );
-      break;
     case "student/subjects":
       await api.actions.loginActions.addAfterLoginCallback(
         api.actions.routingActions.showGrades.call,
       );
-      break;
     case "student/certificate":
       await api.actions.loginActions.addAfterLoginCallback(
         api.actions.routingActions.showCertificate.call,
       );
-      break;
     case "message/list":
       await api.actions.loginActions.addAfterLoginCallback(
         api.actions.routingActions.showMessages.call,
       );
-      break;
     default:
       showSnackBar("Dieser Link konnte nicht geöffnet werden");
   }

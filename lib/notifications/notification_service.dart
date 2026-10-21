@@ -68,7 +68,7 @@ class LocalNotificationService {
     if (!isSupported) return false;
 
     try {
-      final settings = InitializationSettings(
+      const settings = InitializationSettings(
         android: const AndroidInitializationSettings("@mipmap/launcher_icon"),
         iOS: const DarwinInitializationSettings(),
         macOS: const DarwinInitializationSettings(),

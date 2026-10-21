@@ -23,6 +23,7 @@ import 'package:dr/actions/absences_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/lesson_times.dart';
+import 'package:dr/ui/dialog.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:flutter/material.dart';
 
@@ -203,116 +204,121 @@ class _AddFutureAbsenceDialogState extends State<_AddFutureAbsenceDialog> {
   @override
   Widget build(BuildContext context) {
     final hours = [for (var h = 1; h <= widget.maxHour; h++) h];
-    return AlertDialog(
-      title: const Text("Krank melden / vorentschuldigen"),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event),
-              title: const Text("Von"),
-              subtitle: Text(_formatDate(startDate)),
-              onTap: _pickStart,
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event_available),
-              title: const Text("Bis"),
-              subtitle: Text(_formatDate(endDate)),
-              onTap: _pickEnd,
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<int>(
-              value: startHour,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: "Von Stunde"),
-              items: [
-                for (final h in hours)
-                  DropdownMenuItem(value: h, child: Text(_hourLabel(h))),
-              ],
-              onChanged: (value) => setState(() {
-                startHour = value!;
-                _clampHours();
-              }),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<int>(
-              value: endHour,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: "Bis Stunde"),
-              items: [
-                for (final h in hours)
-                  if (!_isSingleDay || h >= startHour)
+    final submit = _isValid ? _submit : null;
+    return SubmitShortcut(
+      onSubmit: submit,
+      child: AlertDialog(
+        title: const Text("Krank melden / vorentschuldigen"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event),
+                title: const Text("Von"),
+                subtitle: Text(_formatDate(startDate)),
+                onTap: _pickStart,
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_available),
+                title: const Text("Bis"),
+                subtitle: Text(_formatDate(endDate)),
+                onTap: _pickEnd,
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                value: startHour,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: "Von Stunde"),
+                items: [
+                  for (final h in hours)
                     DropdownMenuItem(value: h, child: Text(_hourLabel(h))),
-              ],
-              onChanged: (value) => setState(() => endHour = value!),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                labelText: "Begründung",
-                hintText: "Begründung eingeben",
+                ],
+                onChanged: (value) => setState(() {
+                  startHour = value!;
+                  _clampHours();
+                }),
               ),
-              minLines: 1,
-              maxLines: 3,
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 6,
-              children: [
-                for (final reason in _quickReasons)
-                  ActionChip(
-                    label: Text(reason),
-                    onPressed: () => setState(() {
-                      reasonController.text = reason;
-                    }),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: signatureController,
-              decoration: const InputDecoration(
-                labelText: "Bestätigung",
-                hintText: "Mit Vor- und Nachnamen bestätigen",
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                value: endHour,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: "Bis Stunde"),
+                items: [
+                  for (final h in hours)
+                    if (!_isSingleDay || h >= startHour)
+                      DropdownMenuItem(value: h, child: Text(_hourLabel(h))),
+                ],
+                onChanged: (value) => setState(() => endHour = value!),
               ),
-              onChanged: (_) => setState(() {}),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("Abbrechen"),
-        ),
-        ElevatedButton(
-          onPressed: _isValid
-              ? () {
-                  Navigator.pop(
-                    context,
-                    AddFutureAbsencePayload(
-                      (b) => b
-                        ..startDate = UtcDateTime(
-                            startDate.year, startDate.month, startDate.day)
-                        ..endDate = UtcDateTime(
-                            endDate.year, endDate.month, endDate.day)
-                        ..startHour = startHour
-                        ..endHour = endHour
-                        ..reason = reasonController.text.trim()
-                        ..signature = signatureController.text.trim(),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: "Begründung",
+                  helperText: submitShortcutHint,
+                  hintText: "Begründung eingeben",
+                ),
+                minLines: 1,
+                maxLines: 3,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (final reason in _quickReasons)
+                    ActionChip(
+                      label: Text(reason),
+                      onPressed: () => setState(() {
+                        reasonController.text = reason;
+                      }),
                     ),
-                  );
-                }
-              : null,
-          child: const Text("Eintragen"),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: signatureController,
+                decoration: const InputDecoration(
+                  labelText: "Bestätigung",
+                  hintText: "Mit Vor- und Nachnamen bestätigen",
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ],
+          ),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Abbrechen"),
+          ),
+          ElevatedButton(
+            onPressed: submit,
+            child: const Text("Eintragen"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _submit() {
+    Navigator.pop(
+      context,
+      AddFutureAbsencePayload(
+        (b) => b
+          ..startDate =
+              UtcDateTime(startDate.year, startDate.month, startDate.day)
+          ..endDate = UtcDateTime(endDate.year, endDate.month, endDate.day)
+          ..startHour = startHour
+          ..endHour = endHour
+          ..reason = reasonController.text.trim()
+          ..signature = signatureController.text.trim(),
+      ),
     );
   }
 }
@@ -416,115 +422,119 @@ class _JustifyAbsenceDialogState extends State<_JustifyAbsenceDialog> {
   @override
   Widget build(BuildContext context) {
     final dates = widget.group.absences.map((a) => a.date).toList()..sort();
-    return AlertDialog(
-      title: const Text("Absenz entschuldigen"),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (dates.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  dates.length == 1
-                      ? _formatDate(dates.first)
-                      : "${_formatDate(dates.first)} – ${_formatDate(dates.last)}",
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ),
-            if (widget.selfDeclarations.isNotEmpty) ...[
-              DropdownButtonFormField<SelfDeclaration?>(
-                value: declaration,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: widget.selfDeclarationMandatory
-                      ? "Selbsterklärung"
-                      : "Selbsterklärung (optional)",
-                ),
-                items: [
-                  if (!widget.selfDeclarationMandatory)
-                    const DropdownMenuItem<SelfDeclaration?>(
-                      child: Text("Eigener Grund"),
-                    ),
-                  for (final d in widget.selfDeclarations)
-                    DropdownMenuItem<SelfDeclaration?>(
-                      value: d,
-                      child: Text(d.title, overflow: TextOverflow.ellipsis),
-                    ),
-                ],
-                onChanged: _selectDeclaration,
-              ),
-              if (_needsDeclarationInput) ...[
-                const SizedBox(height: 8),
-                TextField(
-                  controller: declarationInputController,
-                  decoration: InputDecoration(
-                    labelText: declaration!.inputExplain.trim().isEmpty
-                        ? "Ergänzung"
-                        : declaration!.inputExplain,
+    final submit = _isValid ? _submit : null;
+    return SubmitShortcut(
+      onSubmit: submit,
+      child: AlertDialog(
+        title: const Text("Absenz entschuldigen"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (dates.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    dates.length == 1
+                        ? _formatDate(dates.first)
+                        : "${_formatDate(dates.first)} – ${_formatDate(dates.last)}",
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
-                  onChanged: (_) => setState(() {}),
                 ),
-              ],
-              const SizedBox(height: 8),
-            ],
-            TextField(
-              controller: reasonController,
-              autofocus: widget.selfDeclarations.isEmpty,
-              decoration: const InputDecoration(
-                labelText: "Grund",
-                hintText: "z. B. Krankheit",
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: signatureController,
-              decoration: const InputDecoration(
-                labelText: "Unterschrift",
-                hintText: "Vor- und Nachname",
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: noteController,
-              decoration: const InputDecoration(
-                labelText: "Anmerkung (optional)",
-              ),
-              maxLines: 2,
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("Abbrechen"),
-        ),
-        ElevatedButton(
-          onPressed: _isValid
-              ? () {
-                  final note = noteController.text.trim();
-                  Navigator.pop(
-                    context,
-                    JustifyAbsencePayload(
-                      (b) => b
-                        ..group.replace(widget.group)
-                        ..reason = reasonController.text.trim()
-                        ..signature = signatureController.text.trim()
-                        ..note = note.isEmpty ? null : note
-                        ..selfDeclaration = declaration?.toBuilder()
-                        ..selfDeclarationInput =
-                            declarationInputController.text.trim(),
+              if (widget.selfDeclarations.isNotEmpty) ...[
+                DropdownButtonFormField<SelfDeclaration?>(
+                  value: declaration,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: widget.selfDeclarationMandatory
+                        ? "Selbsterklärung"
+                        : "Selbsterklärung (optional)",
+                  ),
+                  items: [
+                    if (!widget.selfDeclarationMandatory)
+                      const DropdownMenuItem<SelfDeclaration?>(
+                        child: Text("Eigener Grund"),
+                      ),
+                    for (final d in widget.selfDeclarations)
+                      DropdownMenuItem<SelfDeclaration?>(
+                        value: d,
+                        child: Text(d.title, overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                  onChanged: _selectDeclaration,
+                ),
+                if (_needsDeclarationInput) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: declarationInputController,
+                    decoration: InputDecoration(
+                      labelText: declaration!.inputExplain.trim().isEmpty
+                          ? "Ergänzung"
+                          : declaration!.inputExplain,
                     ),
-                  );
-                }
-              : null,
-          child: const Text("Speichern"),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ],
+                const SizedBox(height: 8),
+              ],
+              TextField(
+                controller: reasonController,
+                textCapitalization: TextCapitalization.sentences,
+                autofocus: widget.selfDeclarations.isEmpty,
+                decoration: const InputDecoration(
+                  labelText: "Grund",
+                  hintText: "z. B. Krankheit",
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: signatureController,
+                decoration: const InputDecoration(
+                  labelText: "Unterschrift",
+                  hintText: "Vor- und Nachname",
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: noteController,
+                decoration: const InputDecoration(
+                  labelText: "Anmerkung (optional)",
+                ),
+                maxLines: 2,
+              ),
+            ],
+          ),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Abbrechen"),
+          ),
+          ElevatedButton(
+            onPressed: submit,
+            child: const Text("Speichern"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _submit() {
+    final note = noteController.text.trim();
+    Navigator.pop(
+      context,
+      JustifyAbsencePayload(
+        (b) => b
+          ..group.replace(widget.group)
+          ..reason = reasonController.text.trim()
+          ..signature = signatureController.text.trim()
+          ..note = note.isEmpty ? null : note
+          ..selfDeclaration = declaration?.toBuilder()
+          ..selfDeclarationInput = declarationInputController.text.trim(),
+      ),
     );
   }
 }

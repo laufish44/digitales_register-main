@@ -56,7 +56,7 @@ class AbsencesPageContainer extends StatelessWidget {
 
 class AbsencesPageViewModel {
   AbsencesPageViewModel(AppState state)
-      : this.state = state.absencesState,
+      : state = state.absencesState,
         noInternet = state.noInternet,
         entryEnabled = state.settingsState.absenceEntryEnabled &&
             !state.isDemo &&

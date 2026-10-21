@@ -56,6 +56,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:dr/file_opener.dart';
 import 'package:dr/util.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -152,8 +153,7 @@ class UpdateCheckResult {
 
 /// What happened when an update was downloaded and handed to the system.
 class UpdateDownloadResult {
-  const UpdateDownloadResult.handedOver([this.message])
-      : success = true;
+  const UpdateDownloadResult.handedOver([this.message]) : success = true;
   const UpdateDownloadResult.failed(String this.message) : success = false;
 
   final bool success;
@@ -262,7 +262,7 @@ class UpdateService {
     while (url.endsWith("/")) {
       url = url.substring(0, url.length - 1);
     }
-    if (!RegExp(r"^[a-zA-Z][a-zA-Z0-9+.-]*://").hasMatch(url)) {
+    if (!RegExp("^[a-zA-Z][a-zA-Z0-9+.-]*://").hasMatch(url)) {
       url = "https://$url";
     }
 
@@ -391,14 +391,22 @@ class UpdateService {
       }
     }
 
+    if (Platform.isWindows && await _startSilentSetup(file)) {
+      // The installer cannot replace files that are still in use, so step out
+      // of the way once it is running. It starts the new version itself.
+      await Future<void>.delayed(const Duration(seconds: 1));
+      exit(0);
+    }
+    if (Platform.isAndroid && await _installThroughSession(file)) {
+      return const UpdateDownloadResult.handedOver(androidSessionNote);
+    }
+
     final result = await openFileWithDefaultApp(file.path);
     if (!result.success) {
       return UpdateDownloadResult.failed(result.errorMessage!);
     }
 
     if (Platform.isWindows) {
-      // The installer cannot replace files that are still in use, so step out
-      // of the way once it is running.
       await Future<void>.delayed(const Duration(seconds: 2));
       exit(0);
     }
@@ -410,6 +418,57 @@ class UpdateService {
     }
     return const UpdateDownloadResult.handedOver();
   }
+
+  /// The arguments that make the Inno Setup installer run without its wizard:
+  /// no pages, no message boxes, the running app closed for it. The installer
+  /// starts the app again when it is done (see `[Run]` in the .iss).
+  static const silentSetupArguments = [
+    "/VERYSILENT",
+    "/SUPPRESSMSGBOXES",
+    "/NORESTART",
+    "/CLOSEAPPLICATIONS",
+  ];
+
+  /// Starts the Windows installer without its wizard. False when it could not
+  /// be started that way — an installation for all users needs the
+  /// administrator prompt, which only the normal way of opening it shows.
+  static Future<bool> _startSilentSetup(File setup) async {
+    try {
+      await Process.start(
+        setup.path,
+        silentSetupArguments,
+        mode: ProcessStartMode.detached,
+      );
+      return true;
+    } catch (e) {
+      log("silent setup could not be started, falling back", error: e);
+      return false;
+    }
+  }
+
+  static const _selfUpdate =
+      MethodChannel("it.digitalesregisterapp/self_update");
+
+  /// Hands the APK to Android's PackageInstaller as the app's own install
+  /// (SelfUpdate.kt): after the first time, updates need no confirmation.
+  static Future<bool> _installThroughSession(File apk) async {
+    try {
+      await _selfUpdate.invokeMethod<void>("install", apk.path);
+      return true;
+    } on PlatformException catch (e) {
+      log("install session failed, falling back", error: e);
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// Shown on Android after the update went to the PackageInstaller.
+  static const androidSessionNote =
+      "Das Update wird installiert. Fragt Android nach, bitte bestätigen – "
+      "ab Android 12 ist das nur beim ersten Mal nötig, danach installieren "
+      "sich Updates ohne Nachfrage.\n\n"
+      "Die App schließt sich dabei; eine Benachrichtigung öffnet sie wieder.";
 
   /// Shown on Android after the APK was handed to the system.
   ///
@@ -428,7 +487,8 @@ class UpdateService {
     final directory = await getTemporaryDirectory();
     final name = Uri.parse(build.url).pathSegments.last;
     final file = File(
-      joinPath(directory.path, sanitizeFileName(name.isEmpty ? "update" : name)),
+      joinPath(
+          directory.path, sanitizeFileName(name.isEmpty ? "update" : name)),
     );
 
     final client = http.Client();
@@ -445,7 +505,8 @@ class UpdateService {
         await for (final chunk in response.stream) {
           received += chunk.length;
           sink.add(chunk);
-          onProgress?.call(total == null || total <= 0 ? null : received / total);
+          onProgress
+              ?.call(total == null || total <= 0 ? null : received / total);
         }
         await sink.flush();
       } finally {

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_name_today">Heute</string>
+    <string name="widget_desc_today">Tests, Hausaufgaben und Stunden von heute</string>
+    <string name="widget_name_tomorrow">Morgen</string>
+    <string name="widget_desc_tomorrow">Was morgen ansteht, mit Stundenplan</string>
+    <string name="widget_name_upcoming">Demnächst</string>
+    <string name="widget_desc_upcoming">Alles der nächsten Wochen mit Tage-Countdown</string>
+    <string name="widget_name_exams">Prüfungen</string>
+    <string name="widget_desc_exams">Die nächsten Tests und Schularbeiten</string>
+    <string name="widget_name_homework">Hausaufgaben</string>
+    <string name="widget_desc_homework">Offene Hausaufgaben</string>
+    <string name="widget_name_reminders">Erinnerungen</string>
+    <string name="widget_desc_reminders">Deine eigenen Erinnerungen</string>
+    <string name="widget_name_week">Woche</string>
+    <string name="widget_desc_week">Montag bis Freitag auf einen Blick</string>
+    <string name="widget_name_timetable_today">Stundenplan heute</string>
+    <string name="widget_desc_timetable_today">Die Stunden von heute mit Raum und Uhrzeit</string>
+    <string name="widget_name_timetable_tomorrow">Stundenplan morgen</string>
+    <string name="widget_desc_timetable_tomorrow">Die Stunden von morgen</string>
+    <string name="widget_name_next_lesson">Nächste Stunde</string>
+    <string name="widget_desc_next_lesson">Welches Fach jetzt bzw. als Nächstes kommt</string>
+    <string name="widget_name_grades_subjects">Noten nach Fach</string>
+    <string name="widget_desc_grades_subjects">Schnitt je Fach, die schwächsten zuerst</string>
+    <string name="widget_name_grades_recent">Letzte Noten</string>
+    <string name="widget_desc_grades_recent">Die neuesten Noten</string>
+    <string name="widget_name_average">Notenschnitt</string>
+    <string name="widget_desc_average">Gesamtschnitt mit Trend</string>
+    <string name="widget_name_next_exam">Nächste Prüfung</string>
+    <string name="widget_desc_next_exam">Countdown bis zur nächsten Prüfung</string>
+    <string name="widget_name_absences">Absenzen</string>
+    <string name="widget_desc_absences">Anteil der Fehlstunden laut Register</string>
+    <string name="widget_name_absence_budget">Noch fehlbar</string>
+    <string name="widget_desc_absence_budget">Wie viele Stunden du noch fehlen kannst</string>
+    <string name="widget_name_holidays">Ferien-Countdown</string>
+    <string name="widget_desc_holidays">Tage bis zu den nächsten Ferien</string>
+    <string name="widget_name_school_end">Schulende</string>
+    <string name="widget_desc_school_end">Tage bis zum letzten Schultag</string>
+    <string name="widget_name_messages">Mitteilungen</string>
+    <string name="widget_desc_messages">Ungelesene Mitteilungen</string>
+    <string name="widget_name_unread">Ungelesen</string>
+    <string name="widget_desc_unread">Zahl der ungelesenen Mitteilungen</string>
+    <string name="widget_name_overview">Überblick</string>
+    <string name="widget_desc_overview">Schnitt, Absenzen, nächste Prüfung und Mitteilungen</string>
+</resources>

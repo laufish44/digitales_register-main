@@ -173,7 +173,7 @@ void main() {
     test("leaves homework out unless it is asked for", () {
       final dashboard = _dashboard({
         UtcDateTime(2026, 3, 12): [
-          _dashboardEntry(id: 1, title: "Seite 41", warning: false),
+          _dashboardEntry(id: 1, title: "Seite 41"),
           _dashboardEntry(id: 2, title: "Test", warning: true),
         ],
       });
@@ -216,7 +216,7 @@ void main() {
             ),
           ],
         }),
-        now: UtcDateTime(2026, 3, 10, 12, 0),
+        now: UtcDateTime(2026, 3, 10, 12),
         includeCalendar: true,
       );
       expect(entries, hasLength(1));
@@ -493,7 +493,6 @@ void main() {
           ],
         }),
         now: _today,
-        within: const Duration(days: 30),
       );
       expect(entries.map((e) => e.name), ["Früher", "Später"]);
     });
@@ -866,7 +865,7 @@ void main() {
 
     test("returns nothing once everything is in the past", () {
       expect(
-        SchoolYear.nextHolidays(holidays, now: UtcDateTime(2026, 7, 1)),
+        SchoolYear.nextHolidays(holidays, now: UtcDateTime(2026, 7)),
         isNull,
       );
     });
@@ -874,7 +873,7 @@ void main() {
     test("counts down to the last day of school", () {
       final last = SchoolYear.lastDay(UtcDateTime(2026, 6, 16), now: _today);
       expect(last!.days, 98);
-      expect(SchoolYear.lastDay(UtcDateTime(2026, 1, 1), now: _today), isNull);
+      expect(SchoolYear.lastDay(UtcDateTime(2026, 1), now: _today), isNull);
     });
 
     test("knows when Easter is", () {
@@ -945,7 +944,7 @@ void main() {
 
     test("settings from a finished school year count as outdated", () {
       final now = UtcDateTime(2026, 10, 14);
-      final lastYear = holidaysForSchoolYear(UtcDateTime(2025, 10, 1));
+      final lastYear = holidaysForSchoolYear(UtcDateTime(2025, 10));
       expect(
         schoolYearSettingsOutdated(lastYear, UtcDateTime(2026, 6, 16),
             now: now),

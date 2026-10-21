@@ -723,7 +723,8 @@ abstract class Message implements Built<Message, MessageBuilder> {
   /// considered them dealt with.
   bool get isNew {
     if (toUserId <= 0) return false;
-    final answered = needsParentSignature || !responseRequired || response != null;
+    final answered =
+        needsParentSignature || !responseRequired || response != null;
     final signed =
         needsParentSignature || !signatureRequired || responseSignature != null;
     return !(timeRead != null && answered && signed);

@@ -20,8 +20,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('as a precise value', () {
-    expect(tryParseFormattedGrade("0"), 0);
-    expect(tryParseFormattedGrade("000"), 0);
+    // Nothing below a 4 exists.
+    expect(tryParseFormattedGrade("0"), null);
+    expect(tryParseFormattedGrade("3,99"), null);
+    expect(tryParseFormattedGrade("4"), 4 * 100);
+    expect(tryParseFormattedGrade("004"), 4 * 100);
     expect(tryParseFormattedGrade("10"), 10 * 100);
     expect(tryParseFormattedGrade("8,5"), 8 * 100 + 50);
     expect(tryParseFormattedGrade("08,5"), 8 * 100 + 50);
@@ -37,13 +40,15 @@ void main() {
   });
   test('as less', () {
     expect(tryParseFormattedGrade("0-"), null);
+    expect(tryParseFormattedGrade("4-"), null);
     expect(tryParseFormattedGrade("5-"), 5 * 100 - 25);
     expect(tryParseFormattedGrade("10-"), 10 * 100 - 25);
     expect(tryParseFormattedGrade("11-"), null);
     expect(tryParseFormattedGrade("8--"), null);
   });
   test('as more', () {
-    expect(tryParseFormattedGrade("0+"), 0 * 100 + 25);
+    expect(tryParseFormattedGrade("0+"), null);
+    expect(tryParseFormattedGrade("4+"), 4 * 100 + 25);
     expect(tryParseFormattedGrade("5+"), 5 * 100 + 25);
     expect(tryParseFormattedGrade("10+"), null);
     expect(tryParseFormattedGrade("11+"), null);
@@ -51,8 +56,10 @@ void main() {
   });
   test('as between', () {
     expect(tryParseFormattedGrade("-1-0"), null);
-    expect(tryParseFormattedGrade("0-1"), 0 * 100 + 50);
-    expect(tryParseFormattedGrade("0/1"), 0 * 100 + 50);
+    expect(tryParseFormattedGrade("0-1"), null);
+    expect(tryParseFormattedGrade("3/4"), null);
+    expect(tryParseFormattedGrade("4-5"), 4 * 100 + 50);
+    expect(tryParseFormattedGrade("4/5"), 4 * 100 + 50);
     expect(tryParseFormattedGrade("10/11"), null);
     expect(tryParseFormattedGrade("10/9"), null);
     expect(tryParseFormattedGrade("9/9.5"), null);

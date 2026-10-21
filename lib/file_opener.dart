@@ -166,14 +166,6 @@ const _seErrAssocIncomplete = 27;
 const _seErrNoAssoc = 31;
 const _swShowNormal = 1;
 
-typedef _ShellExecuteWNative = IntPtr Function(
-  IntPtr hwnd,
-  Pointer<Utf16> operation,
-  Pointer<Utf16> file,
-  Pointer<Utf16> parameters,
-  Pointer<Utf16> directory,
-  Int32 showCmd,
-);
 typedef _ShellExecuteWDart = int Function(
   int hwnd,
   Pointer<Utf16> operation,
@@ -190,8 +182,10 @@ _ShellExecuteWDart? _lookUpShellExecuteW() {
   if (_triedLookingUpShellExecuteW) return _shellExecuteW;
   _triedLookingUpShellExecuteW = true;
   try {
-    _shellExecuteW = DynamicLibrary.open("shell32.dll")
-        .lookupFunction<_ShellExecuteWNative, _ShellExecuteWDart>(
+    _shellExecuteW = DynamicLibrary.open("shell32.dll").lookupFunction<
+        IntPtr Function(IntPtr, Pointer<Utf16>, Pointer<Utf16>, Pointer<Utf16>,
+            Pointer<Utf16>, Int32),
+        _ShellExecuteWDart>(
       "ShellExecuteW",
     );
   } catch (e) {

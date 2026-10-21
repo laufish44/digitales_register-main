@@ -25,13 +25,13 @@ import 'package:dr/ui/attachment_actions.dart';
 import 'package:dr/ui/last_fetched_overlay.dart';
 import 'package:dr/ui/message_compose.dart';
 import 'package:dr/ui/no_internet.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:dr/util.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:quill_delta/quill_delta.dart';
 import 'package:quill_delta_viewer/quill_delta_viewer.dart';
 import 'package:responsive_scaffold/responsive_scaffold.dart';
+import 'package:share_plus/share_plus.dart';
 
 class MessagesPage extends StatelessWidget {
   final MessagesState? state;

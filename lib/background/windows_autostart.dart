@@ -35,8 +35,7 @@ import 'package:ffi/ffi.dart';
 /// The command line switch that makes `main()` run headless.
 const backgroundModeFlag = "--background";
 
-const _runKeyPath =
-    r"Software\Microsoft\Windows\CurrentVersion\Run";
+const _runKeyPath = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const _valueName = "DigitalesRegister";
 
 const _hkeyCurrentUser = 0x80000001;
@@ -45,27 +44,6 @@ const _keySetValue = 0x0002;
 const _standardRightsRead = 0x00020000;
 const _errorSuccess = 0;
 const _regSz = 1;
-
-typedef _RegOpenKeyExWNative = Int32 Function(
-    IntPtr, Pointer<Utf16>, Uint32, Uint32, Pointer<IntPtr>);
-typedef _RegOpenKeyExWDart = int Function(
-    int, Pointer<Utf16>, int, int, Pointer<IntPtr>);
-
-typedef _RegSetValueExWNative = Int32 Function(
-    IntPtr, Pointer<Utf16>, Uint32, Uint32, Pointer<Uint8>, Uint32);
-typedef _RegSetValueExWDart = int Function(
-    int, Pointer<Utf16>, int, int, Pointer<Uint8>, int);
-
-typedef _RegQueryValueExWNative = Int32 Function(IntPtr, Pointer<Utf16>,
-    Pointer<Uint32>, Pointer<Uint32>, Pointer<Uint8>, Pointer<Uint32>);
-typedef _RegQueryValueExWDart = int Function(int, Pointer<Utf16>,
-    Pointer<Uint32>, Pointer<Uint32>, Pointer<Uint8>, Pointer<Uint32>);
-
-typedef _RegDeleteValueWNative = Int32 Function(IntPtr, Pointer<Utf16>);
-typedef _RegDeleteValueWDart = int Function(int, Pointer<Utf16>);
-
-typedef _RegCloseKeyNative = Int32 Function(IntPtr);
-typedef _RegCloseKeyDart = int Function(int);
 
 class WindowsAutostart {
   WindowsAutostart._();
@@ -82,19 +60,28 @@ class WindowsAutostart {
   }
 
   /// The command Windows should run at logon.
-  static String get command => '"${Platform.resolvedExecutable}" $backgroundModeFlag';
+  static String get command =>
+      '"${Platform.resolvedExecutable}" $backgroundModeFlag';
 
   /// Whether the background service is registered to start at logon.
   static Future<bool> isEnabled() async {
     final lib = _lib;
     if (lib == null) return false;
     return _withRunKey(lib, _standardRightsRead | _keyQueryValue, (key) {
-          final query = lib.lookupFunction<_RegQueryValueExWNative,
-              _RegQueryValueExWDart>("RegQueryValueExW");
+          final query = lib.lookupFunction<
+              Int32 Function(IntPtr, Pointer<Utf16>, Pointer<Uint32>,
+                  Pointer<Uint32>, Pointer<Uint8>, Pointer<Uint32>),
+              int Function(
+                  int,
+                  Pointer<Utf16>,
+                  Pointer<Uint32>,
+                  Pointer<Uint32>,
+                  Pointer<Uint8>,
+                  Pointer<Uint32>)>("RegQueryValueExW");
           final namePointer = _valueName.toNativeUtf16();
           try {
-            return query(key, namePointer, nullptr, nullptr, nullptr,
-                    nullptr) ==
+            return query(
+                    key, namePointer, nullptr, nullptr, nullptr, nullptr) ==
                 _errorSuccess;
           } finally {
             malloc.free(namePointer);
@@ -111,15 +98,19 @@ class WindowsAutostart {
           final namePointer = _valueName.toNativeUtf16();
           try {
             if (!enabled) {
-              final delete = lib.lookupFunction<_RegDeleteValueWNative,
-                  _RegDeleteValueWDart>("RegDeleteValueW");
+              final delete = lib.lookupFunction<
+                  Int32 Function(IntPtr, Pointer<Utf16>),
+                  int Function(int, Pointer<Utf16>)>("RegDeleteValueW");
               final result = delete(key, namePointer);
               // Deleting something that is not there is not a failure.
               return result == _errorSuccess || result == 2;
             }
 
-            final set = lib.lookupFunction<_RegSetValueExWNative,
-                _RegSetValueExWDart>("RegSetValueExW");
+            final set = lib.lookupFunction<
+                Int32 Function(IntPtr, Pointer<Utf16>, Uint32, Uint32,
+                    Pointer<Uint8>, Uint32),
+                int Function(int, Pointer<Utf16>, int, int, Pointer<Uint8>,
+                    int)>("RegSetValueExW");
             final value = command;
             final valuePointer = value.toNativeUtf16();
             try {
@@ -144,10 +135,12 @@ class WindowsAutostart {
     int access,
     T Function(int key) action,
   ) {
-    final open = lib.lookupFunction<_RegOpenKeyExWNative, _RegOpenKeyExWDart>(
-        "RegOpenKeyExW");
-    final close =
-        lib.lookupFunction<_RegCloseKeyNative, _RegCloseKeyDart>("RegCloseKey");
+    final open = lib.lookupFunction<
+        Int32 Function(IntPtr, Pointer<Utf16>, Uint32, Uint32, Pointer<IntPtr>),
+        int Function(
+            int, Pointer<Utf16>, int, int, Pointer<IntPtr>)>("RegOpenKeyExW");
+    final close = lib.lookupFunction<Int32 Function(IntPtr), int Function(int)>(
+        "RegCloseKey");
 
     final pathPointer = _runKeyPath.toNativeUtf16();
     final keyPointer = calloc<IntPtr>();

@@ -75,8 +75,7 @@ AbsencesState _parseAbsences(Map json) {
       ..statistic = stats
       ..absences = ListBuilder(absences)
       ..futureAbsences = ListBuilder(futureAbsences)
-      ..selfDeclarations =
-          ListBuilder(declarations.map(_parseSelfDeclaration))
+      ..selfDeclarations = ListBuilder(declarations.map(_parseSelfDeclaration))
       ..canEdit = getBool(json["canEdit"]) ?? true
       ..selfDeclarationActive =
           getBool(json["isAbsencesSelfDeclarationActive"]) ?? false

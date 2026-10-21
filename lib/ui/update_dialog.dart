@@ -28,19 +28,32 @@ Future<void> showUpdateDialog(
   BuildContext context,
   UpdateInfo info, {
   UpdateService service = const UpdateService(),
+  bool startRightAway = false,
 }) {
   return showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (context) => _UpdateDialog(info: info, service: service),
+    builder: (context) => _UpdateDialog(
+      info: info,
+      service: service,
+      startRightAway: startRightAway,
+    ),
   );
 }
 
 class _UpdateDialog extends StatefulWidget {
-  const _UpdateDialog({required this.info, required this.service});
+  const _UpdateDialog({
+    required this.info,
+    required this.service,
+    this.startRightAway = false,
+  });
 
   final UpdateInfo info;
   final UpdateService service;
+
+  /// Downloads without waiting for another tap — the banner's "Aktualisieren"
+  /// already was the decision.
+  final bool startRightAway;
 
   @override
   State<_UpdateDialog> createState() => _UpdateDialogState();
@@ -51,6 +64,14 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   double? progress;
   String? message;
   bool messageIsError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.startRightAway && widget.info.build != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _install());
+    }
+  }
 
   Future<void> _install() async {
     final build = widget.info.build;

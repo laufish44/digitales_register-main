@@ -124,7 +124,7 @@ Future<void> _editReminder(
     await api.actions.dashboardActions.toggleDone(
       ToggleDonePayload(
         (b) => b
-          ..homeworkId = getInt(saved["id"])!
+          ..homeworkId = getInt(saved["id"])
           ..type = old.type.name
           ..done = true,
       ),

@@ -33,21 +33,21 @@ class Certificate extends StatelessWidget {
       body: vm.unavailable
           ? const _CertificateUnavailable()
           : vm.html == null
-          ? Center(
-              child: vm.noInternet
-                  ? const NoInternet()
-                  : const CircularProgressIndicator(),
-            )
-          : LastFetchedOverlay(
-              lastFetched: vm.lastFetched,
-              noInternet: vm.noInternet,
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: HtmlWidget(vm.html!),
+              ? Center(
+                  child: vm.noInternet
+                      ? const NoInternet()
+                      : const CircularProgressIndicator(),
+                )
+              : LastFetchedOverlay(
+                  lastFetched: vm.lastFetched,
+                  noInternet: vm.noInternet,
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: HtmlWidget(vm.html!),
+                    ),
+                  ),
                 ),
-              ),
-            ),
     );
   }
 }

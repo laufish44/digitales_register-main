@@ -271,7 +271,7 @@ class _CalendarState extends State<Calendar> with TickerProviderStateMixin {
                                   opacity: _dateRangeOpacityAnimation,
                                   child: TextButton(
                                     style: ButtonStyle(
-                                      textStyle: MaterialStateProperty.all(
+                                      textStyle: WidgetStateProperty.all(
                                           Theme.of(context)
                                               .textTheme
                                               .titleLarge),

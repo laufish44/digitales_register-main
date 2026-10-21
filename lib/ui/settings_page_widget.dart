@@ -23,6 +23,7 @@ import 'package:dr/container/settings_page.dart';
 import 'package:dr/ui/autocomplete_options.dart';
 import 'package:dr/ui/dialog.dart';
 import 'package:dr/ui/donations.dart';
+import 'package:dr/ui/feedback_dialog.dart';
 import 'package:dr/background/android_background.dart';
 import 'package:dr/fork_info.dart';
 import 'package:dr/lesson_times.dart';
@@ -192,7 +193,6 @@ class _WidgetSettingsTile extends StatelessWidget {
             ),
             subtitle: Slider(
               value: config.maxEntries.toDouble(),
-              min: 0,
               max: 15,
               divisions: 15,
               label: config.maxEntries == 0 ? "alle" : "${config.maxEntries}",
@@ -855,14 +855,11 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
         case _Theme.light:
           widget.onSetFollowDeviceDarkMode(false);
           widget.onSetDarkMode(false);
-          break;
         case _Theme.dark:
           widget.onSetFollowDeviceDarkMode(false);
           widget.onSetDarkMode(true);
-          break;
         case _Theme.followDevice:
           widget.onSetFollowDeviceDarkMode(true);
-          break;
       }
     });
   }
@@ -1598,16 +1595,10 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
               },
             ),
           ListTile(
-            leading: const Icon(Icons.feedback),
-            title: const Text("Feedback geben"),
-            trailing: const Icon(Icons.open_in_new),
-            onTap: () async {
-              await launchUrl(
-                Uri.parse(
-                  "https://docs.google.com/forms/d/e/1FAIpQLSeRYFLq346UH6sMzKicMHwE8KhtnTm4KBv_yho5b0GSrRsluA/viewform?usp=sf_link&entry.1362624919=${Uri.encodeQueryComponent(appVersion)}",
-                ),
-              );
-            },
+            leading: const Icon(Icons.lightbulb_outline),
+            title: const Text("Verbesserung vorschlagen"),
+            subtitle: const Text("Oder einen Fehler melden – als GitHub-Issue"),
+            onTap: () => showFeedbackDialog(context),
           ),
           ListTile(
             leading: const Icon(Icons.code),

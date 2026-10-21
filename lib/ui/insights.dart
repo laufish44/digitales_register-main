@@ -324,8 +324,9 @@ class _PlanText extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final plan = this.plan;
-    if (plan == null)
+    if (plan == null) {
       return const Text("Noch keine Noten für eine Berechnung.");
+    }
     final grades = plan.count == 1 ? "einer Note" : "${plan.count} Noten";
     if (plan.alreadySafe) {
       return const Text(

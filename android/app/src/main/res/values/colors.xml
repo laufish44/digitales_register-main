@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="splash_color">#fafafa</color>
+    <!-- Home screen widgets, matching the app's default (orange) theme. -->
+    <color name="widget_bg">#F7FAFAFA</color>
+    <color name="widget_text">#212121</color>
+    <color name="widget_text_secondary">#757575</color>
+    <color name="widget_accent">#E64A19</color>
+    <color name="widget_error">#D32F2F</color>
+    <color name="widget_badge">#14FF5722</color>
+    <color name="widget_badge_urgent">#33F44336</color>
+    <color name="widget_badge_today">#40FF5722</color>
 </resources>

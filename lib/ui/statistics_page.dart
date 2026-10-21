@@ -233,7 +233,6 @@ class _BigNumber extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
             value,
@@ -329,8 +328,8 @@ class _GradeStatistics extends StatelessWidget {
     if (pooled == null) {
       return const _Section(
         title: "Noten",
-        children: [],
         emptyText: "Noch keine Noten geladen.",
+        children: [],
       );
     }
 
@@ -441,8 +440,8 @@ class _AbsenceStatistics extends StatelessWidget {
     if (statistic == null) {
       return const _Section(
         title: "Absenzen",
-        children: [],
         emptyText: "Noch keine Absenzen geladen.",
+        children: [],
       );
     }
 
@@ -500,11 +499,17 @@ class _AbsenceStatistics extends StatelessWidget {
         // the first day of the year is 100 % of what has happened so far and
         // almost nothing of the year.
         if (year != null) ...[
+          // The register's own figure when it has one: it is what the limit
+          // is checked against, and it counts lessons only up to a cut-off of
+          // its own, so a count up to today would read lower.
           _Row(
             label: "Anteil bisher",
-            value: "${gradeAverageFormat.format(year.percentageSoFar)} %",
-            hint: "von den ${year.census.elapsed} Stunden, die bisher "
-                "stattgefunden haben",
+            value:
+                "${gradeAverageFormat.format(percentage ?? year.percentageSoFar)} %",
+            hint: percentage != null
+                ? "laut Register"
+                : "von den ${year.census.elapsed} Stunden, die bisher "
+                    "stattgefunden haben",
           ),
           _Row(
             label: "Anteil am Schuljahr",
@@ -726,8 +731,8 @@ class _EntryStatistics extends StatelessWidget {
     if (entries.isEmpty) {
       return const _Section(
         title: "Einträge",
-        children: [],
         emptyText: "Noch nichts geladen.",
+        children: [],
       );
     }
 

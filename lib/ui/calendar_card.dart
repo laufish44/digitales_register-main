@@ -73,6 +73,7 @@ class CalendarCard extends StatelessWidget {
   final SubjectTheme theme;
   final bool selected;
   final SubmissionCallback onOpenFile;
+
   /// When the lessons run, from the settings.
   final List<LessonTime> lessonTimes;
   final SubmissionCallback? onSaveFileAs;
@@ -366,9 +367,11 @@ class _SubmissionWidget extends StatelessWidget {
                 name: submission.originalName,
                 enabled: submission.fileAvailable || !noInternet,
                 onOpen: () => onOpenFile(submission),
-                onSaveAs:
-                    onSaveFileAs == null ? null : () => onSaveFileAs!(submission),
-                onCopy: onCopyFile == null ? null : () => onCopyFile!(submission),
+                onSaveAs: onSaveFileAs == null
+                    ? null
+                    : () => onSaveFileAs!(submission),
+                onCopy:
+                    onCopyFile == null ? null : () => onCopyFile!(submission),
               ),
               AnimatedLinearProgressIndicator(show: submission.downloading),
             ],

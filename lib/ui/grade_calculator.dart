@@ -20,14 +20,16 @@ import 'package:deleteable_tile/deleteable_tile.dart';
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
+import 'package:dr/stats.dart' show bestGrade, lowestGrade;
 import 'package:dr/ui/dialog.dart';
 import 'package:dr/util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_built_redux/flutter_built_redux.dart';
 import 'package:tuple/tuple.dart';
 
+/// Grades go from 4 to 10; nothing lower is ever given.
 bool isGradeInRange(int grade) {
-  return grade >= 0 && grade <= 1000;
+  return grade >= lowestGrade && grade <= bestGrade;
 }
 
 int? tryParseFormattedGrade(String grade) {
@@ -666,7 +668,9 @@ class _InputState extends State<_Input> {
                 (!widget.showErrorForEmptyInput && controller.text.isEmpty) ||
                 focusNode.hasFocus
             ? null
-            : "Ungültiger Wert",
+            : widget.inputType == _InputType.grade
+                ? "Noten gehen von 4 bis 10"
+                : "Ungültiger Wert",
         labelText: widget.inputType == _InputType.grade ? "Note" : "Gewichtung",
         suffixText: widget.inputType == _InputType.weight ? "%" : null,
       ),

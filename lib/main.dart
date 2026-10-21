@@ -18,6 +18,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:app_links/app_links.dart';
 import 'package:built_redux/built_redux.dart';
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
@@ -33,13 +34,14 @@ import 'package:dr/container/profile_container.dart';
 import 'package:dr/container/request_pass_reset_container.dart';
 import 'package:dr/container/settings_page.dart';
 import 'package:dr/desktop.dart';
-import 'package:dr/windows_data_migration.dart';
 import 'package:dr/middleware/middleware.dart';
 import 'package:dr/reducer/reducer.dart';
+import 'package:dr/remote_config.dart';
 import 'package:dr/theme.dart';
 import 'package:dr/ui/grade_calculator.dart';
 import 'package:dr/ui/grades_chart_page.dart';
 import 'package:dr/util.dart';
+import 'package:dr/windows_data_migration.dart';
 import 'package:dynamic_theme/dynamic_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,7 +49,6 @@ import 'package:flutter_built_redux/flutter_built_redux.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:responsive_scaffold/responsive_scaffold.dart';
-import 'package:app_links/app_links.dart';
 
 GlobalKey<NavigatorState>? navigatorKey;
 GlobalKey<NavigatorState> nestedNavKey = GlobalKey();
@@ -99,6 +100,9 @@ Future<void> main(List<String> args) async {
       buildNumber: "Unknown",
     );
   }
+  // The school calendar and notices fetched last time, in place before the
+  // state is loaded (see remote_config.dart).
+  await RemoteConfig.loadCached();
   navigatorKey = GlobalKey();
   scaffoldKey = GlobalKey();
   scaffoldMessengerKey = GlobalKey();

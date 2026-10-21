@@ -80,10 +80,10 @@ class _MessageComposePageState extends State<MessageComposePage> {
   MessagePermission? selectedPermission;
 
   Timer? searchDebounce;
-  var searching = false;
-  var loadingDetails = false;
-  var sending = false;
-  var step = 0;
+  bool searching = false;
+  bool loadingDetails = false;
+  bool sending = false;
+  int step = 0;
   String? error;
 
   @override
@@ -139,7 +139,8 @@ class _MessageComposePageState extends State<MessageComposePage> {
     if (!mounted) return;
     setState(() {
       types = loaded;
-      selectedType = loaded?.types.isNotEmpty ?? false ? loaded!.types.first : null;
+      selectedType =
+          loaded?.types.isNotEmpty ?? false ? loaded!.types.first : null;
       selectedPermission = loaded?.permissions.isNotEmpty ?? false
           ? loaded!.permissions.first
           : null;
@@ -273,14 +274,18 @@ class _MessageComposePageState extends State<MessageComposePage> {
                 ),
               ],
             ),
-          Expanded(child: step == 0 ? _buildStep1() : _buildStep2()),
+          // Keyed, so the fields keep their state and focus when the error
+          // banner above comes or goes.
+          Expanded(
+            key: const ValueKey("compose"),
+            child: step == 0 ? _buildStep1() : _buildStep2(),
+          ),
         ],
       ),
       floatingActionButton: step == 0
           ? FloatingActionButton.extended(
-              onPressed: selectedGroups.isEmpty || loadingDetails
-                  ? null
-                  : _goToStep2,
+              onPressed:
+                  selectedGroups.isEmpty || loadingDetails ? null : _goToStep2,
               icon: loadingDetails
                   ? const SizedBox(
                       width: 20,
@@ -290,16 +295,19 @@ class _MessageComposePageState extends State<MessageComposePage> {
                   : const Icon(Icons.arrow_forward),
               label: const Text("Weiter"),
             )
-          : FloatingActionButton.extended(
-              onPressed: _canSend ? _send : null,
-              icon: sending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.send),
-              label: const Text("Senden"),
+          : ListenableBuilder(
+              listenable: Listenable.merge([subjectController, textController]),
+              builder: (context, _) => FloatingActionButton.extended(
+                onPressed: _canSend ? _send : null,
+                icon: sending
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send),
+                label: const Text("Senden"),
+              ),
             ),
     );
   }
@@ -312,6 +320,7 @@ class _MessageComposePageState extends State<MessageComposePage> {
           child: TextField(
             controller: searchController,
             autofocus: true,
+            textCapitalization: TextCapitalization.words,
             decoration: InputDecoration(
               labelText: "Empfänger suchen",
               hintText: "Name, Klasse, ...",
@@ -372,9 +381,8 @@ class _MessageComposePageState extends State<MessageComposePage> {
                     final group = searchResults[index];
                     return ListTile(
                       title: Text(group.label),
-                      subtitle: group.sublabel == null
-                          ? null
-                          : Text(group.sublabel!),
+                      subtitle:
+                          group.sublabel == null ? null : Text(group.sublabel!),
                       trailing: const Icon(Icons.add),
                       onTap: () => setState(() {
                         selectedGroups.add(group);
@@ -394,21 +402,27 @@ class _MessageComposePageState extends State<MessageComposePage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       children: [
+        // No setState per keystroke: rebuilding the page (recipient list
+        // included) on every letter made the keyboard slow to come back on
+        // Android, and the second tap then selected text (#19). Only the send
+        // button listens to the fields.
         TextField(
           controller: subjectController,
+          textCapitalization: TextCapitalization.sentences,
+          textInputAction: TextInputAction.next,
           decoration: const InputDecoration(labelText: "Betreff"),
-          onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: textController,
+          textCapitalization: TextCapitalization.sentences,
+          keyboardType: TextInputType.multiline,
           decoration: const InputDecoration(
             labelText: "Nachricht",
             alignLabelWithHint: true,
           ),
           minLines: 6,
           maxLines: 14,
-          onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 16),
         if (types != null && types!.types.length > 1)

@@ -15,7 +15,47 @@
 // You should have received a copy of the GNU General Public License
 // along with digitales_register.  If not, see <http://www.gnu.org/licenses/>.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+/// A line under a text field pointing at [SubmitShortcut] — only where there
+/// is a keyboard to press it on.
+String? get submitShortcutHint {
+  if (Platform.isMacOS) return "⌘+Enter speichert";
+  if (Platform.isWindows || Platform.isLinux) return "Strg+Enter speichert";
+  return null;
+}
+
+/// Ctrl+Enter (Cmd+Enter on a Mac) inside [child] does what the dialog's
+/// save button does (#16) — also from a text field with several lines, where
+/// a plain Enter starts a new line. Nothing happens while [onSubmit] is null,
+/// just as the button is disabled then.
+class SubmitShortcut extends StatelessWidget {
+  const SubmitShortcut({
+    super.key,
+    required this.onSubmit,
+    required this.child,
+  });
+
+  final VoidCallback? onSubmit;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    void submit() => onSubmit?.call();
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): submit,
+        const SingleActivator(LogicalKeyboardKey.numpadEnter, control: true):
+            submit,
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true): submit,
+      },
+      child: child,
+    );
+  }
+}
 
 /// Shows a close button
 class InfoDialog extends StatelessWidget {

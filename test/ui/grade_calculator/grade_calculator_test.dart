@@ -153,14 +153,18 @@ void main() {
       ),
     );
     await tester.pumpWidget(widget);
+    // 4, 4,5, 5, … 9: eleven grades, none below a 4 (there is no such grade).
     for (var i = 0; i < 11; i++) {
-      await addGrade(i.toString(), isFirst: i == 0);
+      await addGrade(
+        i.isEven ? "${4 + i ~/ 2}" : "${4 + i ~/ 2},5",
+        isFirst: i == 0,
+      );
     }
     // The first grade does not show because it's out of frame.
-    expect(find.text("0"), findsNothing);
-    expect(find.text("10"), findsOneWidget);
+    expect(find.text("4"), findsNothing);
+    expect(find.text("9"), findsOneWidget);
     // We are able to scroll to the first grade
-    await tester.scrollUntilVisible(find.text("0"), -50,
+    await tester.scrollUntilVisible(find.text("4"), -50,
         scrollable: find
             .descendant(
               of: find.byType(GradesList),

@@ -61,8 +61,8 @@ class NotificationStore {
       (await _prefs).setBool(_enabledKey, value);
 
   static Future<int> get intervalSeconds async {
-    final value =
-        (await _prefs).getInt(_intervalKey) ?? defaultNotificationIntervalSeconds;
+    final value = (await _prefs).getInt(_intervalKey) ??
+        defaultNotificationIntervalSeconds;
     return value.clamp(
       minNotificationIntervalSeconds,
       maxNotificationIntervalSeconds,

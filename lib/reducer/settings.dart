@@ -160,7 +160,7 @@ void _setGradeTarget(SettingsState state, Action<MapEntry<String, int>> action,
 String normalizeBackendUrl(String input) {
   var url = input.trim();
   if (url.isEmpty) return "";
-  if (!RegExp(r"^[a-zA-Z][a-zA-Z0-9+.-]*://").hasMatch(url)) {
+  if (!RegExp("^[a-zA-Z][a-zA-Z0-9+.-]*://").hasMatch(url)) {
     url = "https://$url";
   }
   while (url.endsWith("/")) {

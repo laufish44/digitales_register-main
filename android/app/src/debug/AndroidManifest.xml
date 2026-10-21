@@ -3,4 +3,11 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <application>
+        <!-- Shows every home screen widget at once; debug builds only. -->
+        <activity
+            android:name="it.digitalesregisterapp.WidgetGalleryActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight" />
+    </application>
 </manifest>

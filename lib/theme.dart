@@ -113,7 +113,7 @@ class AppThemeDesign {
     cornerRadius: 20,
     cardElevation: 3,
     cardMargin: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    density: VisualDensity(horizontal: 0, vertical: 1),
+    density: VisualDensity(vertical: 1),
     appBarElevation: 0,
     centerAppBarTitle: true,
     filledButtons: true,
@@ -161,8 +161,6 @@ class AppThemeDesign {
   /// Material 3's own shapes.
   static const material3 = AppThemeDesign(
     cornerRadius: 12,
-    cardElevation: 1,
-    cardMargin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     appBarElevation: 0,
   );
 }
@@ -227,8 +225,7 @@ class AppThemePreset {
     }
 
     final scaffold = isDark
-        ? darkScaffoldOverride ??
-            (pureBlackDark ? Colors.black : _darkScaffold)
+        ? darkScaffoldOverride ?? (pureBlackDark ? Colors.black : _darkScaffold)
         : lightScaffoldOverride ?? _lightScaffold;
     final surface = isDark
         ? darkSurfaceOverride ??

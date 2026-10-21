@@ -22,12 +22,12 @@ import 'package:dr/data.dart';
 import 'package:dr/school_year.dart';
 import 'package:dr/stats.dart';
 import 'package:dr/ui/absence.dart';
-import 'package:dr/utc_date_time.dart';
-import 'package:dr/util.dart';
 import 'package:dr/ui/absence_entry.dart';
 import 'package:dr/ui/insights.dart';
 import 'package:dr/ui/last_fetched_overlay.dart';
 import 'package:dr/ui/no_internet.dart';
+import 'package:dr/utc_date_time.dart';
+import 'package:dr/util.dart';
 import 'package:flutter/material.dart';
 import 'package:responsive_scaffold/responsive_scaffold.dart';
 
@@ -184,17 +184,18 @@ class AbsencesBody extends StatelessWidget {
           )
         : const SizedBox.shrink();
 
-    final budget = budgetEnabled
-        ? AbsenceBudgetCard(
-            statistic: state.statistic,
-            absences: state.absences.toList(),
-            limitPercentage: warningThreshold,
-            weeklyLessons: weeklyLessons,
-            holidays: holidays,
-            lastSchoolDay: lastSchoolDay,
-            calendar: calendar,
-          )
-        : const SizedBox.shrink();
+    // One card for both: what is left of the allowance (when switched on) and
+    // the register's own counts, instead of two sections to open.
+    final overview = AbsenceBudgetCard(
+      statistic: state.statistic,
+      absences: state.absences.toList(),
+      limitPercentage: warningThreshold,
+      weeklyLessons: weeklyLessons,
+      holidays: holidays,
+      lastSchoolDay: lastSchoolDay,
+      calendar: calendar,
+      showBudget: budgetEnabled,
+    );
 
     if (state.absences.isEmpty && state.futureAbsences.isEmpty) {
       return ListView(
@@ -214,11 +215,7 @@ class AbsencesBody extends StatelessWidget {
 
     return ListView(children: <Widget>[
       warning,
-      budget,
-      AbsencesStatisticWidget(
-        stat: state.statistic!,
-      ),
-      const Divider(height: 0),
+      overview,
       if (state.futureAbsences.isNotEmpty)
         Padding(
           padding: const EdgeInsets.all(8.0).copyWith(top: 16),
@@ -307,9 +304,14 @@ class AbsenceBudgetCard extends StatelessWidget {
     required this.holidays,
     required this.lastSchoolDay,
     required this.calendar,
+    this.showBudget = true,
   });
 
   final AbsenceStatistic? statistic;
+
+  /// Whether to work out what is left of the allowance. Without it the card
+  /// shows only the register's counts.
+  final bool showBudget;
   final List<AbsenceGroup> absences;
   final int limitPercentage;
 
@@ -334,26 +336,44 @@ class AbsenceBudgetCard extends StatelessWidget {
     // same figure as on the statistics page. Worked back out of the register's
     // percentage only while the calendar is not there yet; that estimate only
     // knows the lessons so far, not the year.
-    final year = AbsenceStats.yearBudget(
-      absences: absences,
-      calendar: calendar,
-      now: now,
-      limitPercentage: limitPercentage.toDouble(),
-      schoolDays: schoolDaysOfYear(
-        now,
-        holidays: holidays,
-        lastSchoolDay: lastSchoolDay,
-      ),
-    );
-    final budget = year != null
+    final year = !showBudget
+        ? null
+        : AbsenceStats.yearBudget(
+            absences: absences,
+            calendar: calendar,
+            now: now,
+            limitPercentage: limitPercentage.toDouble(),
+            schoolDays: schoolDaysOfYear(
+              now,
+              holidays: holidays,
+              lastSchoolDay: lastSchoolDay,
+            ),
+          );
+    final budget = !showBudget || year != null
         ? null
         : AbsenceStats.budget(
             statistic: statistic,
             absences: absences,
             limitPercentage: limitPercentage.toDouble(),
           );
+    final registerPercentage = AbsenceStats.missedPercentage(statistic);
     if (year == null && budget == null) {
-      return const SizedBox.shrink();
+      if (statistic == null) return const SizedBox.shrink();
+      return Card(
+        margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+        child: ExpansionTile(
+          leading: const Icon(Icons.bar_chart),
+          title: const Text("Statistik"),
+          subtitle: registerPercentage == null
+              ? null
+              : Text("${gradeAverageFormat.format(registerPercentage)} % "
+                  "der Stunden gefehlt"),
+          children: [
+            ..._registerRows(context, statistic!),
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
     }
 
     final remaining = year?.remainingLessons ?? budget!.remainingLessons;
@@ -383,11 +403,16 @@ class AbsenceBudgetCard extends StatelessWidget {
         children: [
           _row(context, "Bisher versäumt", "${missed.round()} Stunden"),
           if (year != null) ...[
+            // The register's figure when there is one: the limit is checked
+            // against it, and it only counts lessons up to a cut-off of its
+            // own, so counting up to today reads lower than the register.
             _row(
               context,
               "Anteil bisher",
-              "${gradeAverageFormat.format(year.percentageSoFar)} %",
-              hint: "von ${year.census.elapsed} Stunden bis heute",
+              "${gradeAverageFormat.format(registerPercentage ?? year.percentageSoFar)} %",
+              hint: registerPercentage != null
+                  ? "laut Register"
+                  : "von ${year.census.elapsed} Stunden bis heute",
             ),
             _row(
               context,
@@ -405,8 +430,9 @@ class AbsenceBudgetCard extends StatelessWidget {
           ] else ...[
             _row(
               context,
-              "Anteil laut Register",
+              "Anteil bisher",
               "${gradeAverageFormat.format(budget!.percentage)} %",
+              hint: "laut Register",
             ),
             _row(
               context,
@@ -448,6 +474,10 @@ class AbsenceBudgetCard extends StatelessWidget {
               hint: "bei rund ${gradeAverageFormat.format(perWeek / 5)} "
                   "Stunden am Tag",
             ),
+          if (statistic != null) ...[
+            const Divider(),
+            ..._registerRows(context, statistic!),
+          ],
           const SizedBox(height: 8),
         ],
       ),
@@ -477,50 +507,21 @@ class AbsenceBudgetCard extends StatelessWidget {
     );
   }
 
+  /// What the register counts itself. Its percentage is shown above as
+  /// "Anteil bisher".
+  List<Widget> _registerRows(BuildContext context, AbsenceStatistic stat) => [
+        if (stat.counter != null) _row(context, "Absenzen", "${stat.counter}"),
+        if (stat.justified != null)
+          _row(context, "Entschuldigte Absenzen", "${stat.justified}"),
+        if (stat.notJustified != null)
+          _row(context, "Nicht entschuldigte Absenzen", "${stat.notJustified}"),
+        if (stat.counterForSchool != null)
+          _row(context, "Absenzen im Auftrag der Schule",
+              "${stat.counterForSchool}"),
+        if (stat.delayed != null)
+          _row(context, "Verspätungen", "${stat.delayed}"),
+      ];
+
   static String _formatDay(UtcDateTime date) =>
       "${date.day}.${date.month}.${date.year}";
-}
-
-class AbsencesStatisticWidget extends StatelessWidget {
-  final AbsenceStatistic stat;
-
-  const AbsencesStatisticWidget({super.key, required this.stat});
-  @override
-  Widget build(BuildContext context) {
-    return ExpansionTile(
-      title: const Text("Statistik"),
-      children: <Widget>[
-        if (stat.counter != null)
-          ListTile(
-            title: const Text("Absenzen"),
-            trailing: Text(stat.counter.toString()),
-          ),
-        if (stat.counterForSchool != null)
-          ListTile(
-            title: const Text("Absenzen im Auftrag der Schule"),
-            trailing: Text(stat.counterForSchool.toString()),
-          ),
-        if (stat.delayed != null)
-          ListTile(
-            title: const Text("Verspätungen"),
-            trailing: Text(stat.delayed.toString()),
-          ),
-        if (stat.justified != null)
-          ListTile(
-            title: const Text("Entschuldigte Absenzen"),
-            trailing: Text(stat.justified.toString()),
-          ),
-        if (stat.notJustified != null)
-          ListTile(
-            title: const Text("Nicht entschuldigte Absenzen"),
-            trailing: Text(stat.notJustified.toString()),
-          ),
-        if (stat.percentage != null)
-          ListTile(
-            title: const Text("Abwesenheit"),
-            trailing: Text("${stat.percentage} %"),
-          ),
-      ],
-    );
-  }
 }

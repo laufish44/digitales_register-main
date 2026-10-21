@@ -43,7 +43,7 @@ GradeAll _grade(int grade) => GradeAll(
         ..weightPercentage = 100
         ..cancelled = false
         ..type = "Test"
-        ..date = UtcDateTime(2026, 10, 1),
+        ..date = UtcDateTime(2026, 10),
     );
 
 void main() {
@@ -113,7 +113,7 @@ void main() {
 
     test("says when even the most grades are not enough", () {
       final plan = GradeStats.planForTarget(
-          grades: List.filled(20, _grade(300)), target: 900)!;
+          grades: List.filled(20, _grade(400)), target: 900)!;
       expect(plan.count, 8);
       expect(plan.reachable, isFalse);
     });

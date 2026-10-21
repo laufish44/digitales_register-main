@@ -70,8 +70,7 @@ class RecipientGroup {
     return null;
   }
 
-  bool sameAs(RecipientGroup other) =>
-      id == other.id && type == other.type;
+  bool sameAs(RecipientGroup other) => id == other.id && type == other.type;
 }
 
 /// One expanded group with the individual people in it.
@@ -167,8 +166,7 @@ class MessageComposeApi {
 
   /// The available message types and visibility options.
   Future<MessageTypes?> loadTypes() async {
-    final dynamic response =
-        await sendApiRequest("api/message/getTypes", args: const {});
+    final dynamic response = await sendApiRequest("api/message/getTypes");
     final map = getMap(response);
     if (map == null) return null;
     return MessageTypes(

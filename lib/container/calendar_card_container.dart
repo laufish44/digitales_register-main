@@ -17,12 +17,13 @@
 
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
-import 'package:dr/lesson_times.dart';
 import 'package:dr/data.dart';
+import 'package:dr/lesson_times.dart';
 import 'package:dr/stats.dart';
 import 'package:dr/ui/calendar_card.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:flutter/material.dart';
+
 import 'package:flutter_built_redux/flutter_built_redux.dart';
 
 class CalendarCardContainer extends StatelessWidget {
@@ -59,8 +60,7 @@ class CalendarCardContainer extends StatelessWidget {
           selected: state.calendarState.selection?.date == day &&
               state.calendarState.selection?.hour == hour.fromHour,
           noInternet: state.noInternet,
-          lessonTimes:
-              LessonTimes.resolve(state.settingsState.lessonSchedule),
+          lessonTimes: LessonTimes.resolve(state.settingsState.lessonSchedule),
           absenceMark: state.settingsState.markAbsencesInCalendar
               ? AbsenceMarks.forRange(
                   date: day,

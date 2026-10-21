@@ -200,8 +200,8 @@ class GradeStats {
     );
   }
 
-  static const _bestGrade = 1000;
-  static const _worstGrade = 100;
+  static const _bestGrade = bestGrade;
+  static const _worstGrade = lowestGrade;
 
   /// [n] grades in quarter steps that together reach [average]: as many tens
   /// as needed and the rest in one grade — "10, 10 and an 8" is easier to
@@ -289,16 +289,23 @@ class GradePlan {
   final int count;
 
   /// The average those grades need, scaled by 100. Above 1000 the target is
-  /// out of reach with [count] grades; 100 or less means it is safe anyway.
+  /// out of reach with [count] grades; 400 or less means it is safe anyway,
+  /// since no grade is lower than a 4.
   final double average;
 
   /// One way to get there, best grade first, each scaled by 100. Empty when
   /// the target is out of reach or already safe.
   final List<int> grades;
 
-  bool get reachable => average <= 1000;
-  bool get alreadySafe => average <= 100;
+  bool get reachable => average <= bestGrade;
+  bool get alreadySafe => average <= lowestGrade;
 }
+
+/// The best grade there is, scaled by 100.
+const bestGrade = 1000;
+
+/// The lowest grade there is, scaled by 100: a 4, nothing below.
+const lowestGrade = 400;
 
 class AveragePoint {
   const AveragePoint({required this.date, required this.average});
@@ -1103,9 +1110,6 @@ class Agenda {
               // everything else is an assessment of some kind.
               isExam: !exam.homework,
               warning: exam.warning,
-              // The calendar does not carry the tick; the dashboard copy of the
-              // same entry does.
-              done: false,
             ),
           );
         }

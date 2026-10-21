@@ -185,8 +185,8 @@ class Sidebar extends StatelessWidget {
         for (final countdown
             in [holidayCountdown, lastDayCountdown].whereType<Countdown>())
           CollapsibleItem(
-            hasDivider: countdown == holidayCountdown ||
-                holidayCountdown == null,
+            hasDivider:
+                countdown == holidayCountdown || holidayCountdown == null,
             text: "${countdown.label}: ${countdown.daysLabel}",
             icon: countdown.label == "Schulende"
                 ? Icons.flag_outlined

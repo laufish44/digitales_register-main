@@ -17,18 +17,18 @@
 
 part of 'middleware.dart';
 
-final _notificationsMiddleware =
-    MiddlewareBuilder<AppState, AppStateBuilder, AppActions>()
-      ..add(NotificationsActionsNames.load, _loadNotifications)
-      ..add(NotificationsActionsNames.loaded, _postNewNotifications)
-      ..add(NotificationsActionsNames.delete, _deleteNotification)
-      ..add(NotificationsActionsNames.deleteAll, _deleteAllNotifications)
-      ..add(SettingsActionsNames.setNotificationsEnabled,
-          _applyNotificationSettings)
-      ..add(SettingsActionsNames.setNotificationInterval,
-          _applyNotificationSettings)
-      ..add(SettingsActionsNames.setBackgroundServiceEnabled,
-          _applyBackgroundServiceSetting);
+final _notificationsMiddleware = MiddlewareBuilder<AppState, AppStateBuilder,
+    AppActions>()
+  ..add(NotificationsActionsNames.load, _loadNotifications)
+  ..add(NotificationsActionsNames.loaded, _postNewNotifications)
+  ..add(NotificationsActionsNames.delete, _deleteNotification)
+  ..add(NotificationsActionsNames.deleteAll, _deleteAllNotifications)
+  ..add(
+      SettingsActionsNames.setNotificationsEnabled, _applyNotificationSettings)
+  ..add(
+      SettingsActionsNames.setNotificationInterval, _applyNotificationSettings)
+  ..add(SettingsActionsNames.setBackgroundServiceEnabled,
+      _applyBackgroundServiceSetting);
 
 Future<void> _loadNotifications(
     MiddlewareApi<AppState, AppStateBuilder, AppActions> api,

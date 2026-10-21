@@ -140,4 +140,3 @@ Future<void> androidBackgroundCheck() async {
     api?.close();
   }
 }
-

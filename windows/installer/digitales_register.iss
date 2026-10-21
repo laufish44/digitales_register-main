@@ -68,6 +68,9 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(AppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+; An update from inside the app runs this installer silently (/VERYSILENT,
+; see update_service.dart) after the app closed itself; start it again.
+Filename: "{app}\{#AppExeName}"; Flags: nowait skipifnotsilent
 
 [Registry]
 ; The app writes this itself when "Im Hintergrund weiter prüfen" is switched on.

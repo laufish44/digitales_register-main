@@ -22,7 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The notes of the 8.6.0 release, as GitHub delivers them.
-const _releaseNotes = r'''
+const _releaseNotes = '''
 Krank melden funktioniert, der Notendurchschnitt stimmt mit der Notenübersicht überein, und der Schulkalender 2026/27 ist eingebaut.
 
 ## Krank melden / vorentschuldigen

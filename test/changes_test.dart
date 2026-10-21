@@ -39,7 +39,7 @@ Message _message({
         ..id = 1
         ..subject = "Betreff"
         ..text = '{"ops":[{"insert":"Hallo\\n"}]}'
-        ..timeSent = UtcDateTime(2026, 9, 1)
+        ..timeSent = UtcDateTime(2026, 9)
         ..timeRead = timeRead
         ..recipientString = "Klasse"
         ..fromName = "Lehrperson"

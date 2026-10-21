@@ -16,6 +16,7 @@
 // along with digitales_register.  If not, see <http://www.gnu.org/licenses/>.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 
@@ -515,6 +516,31 @@ class Wrapper {
                   "invalid method: $method; expected POST or GET"));
       responseData = response.data;
     } on Exception catch (e) {
+      if (e is DioException &&
+          isSessionTakenOver(e.response?.statusCode, e.response?.data)) {
+        // The register keeps one session per user: logging in anywhere else
+        // (another device, the website) ends this one, and every request
+        // then gets a 401 (#18). Log in again once and repeat the request, so
+        // that saving a note or an absence still goes through. A second 401
+        // means the other login keeps winning; then give up instead of
+        // taking the session back and forth.
+        onAddProtocolItem!(NetworkProtocolItem((b) => b
+          ..address = baseAddress + url
+          ..response = stringifyMaybeJson(e.response?.data)
+          ..parameters = stringifyMaybeJson(args)));
+        if (isRetryAfterUnexpectedLogout) {
+          log("still logged out after logging in again, giving up on $url");
+          error = "Die Sitzung wurde von einer anderen Anmeldung beendet.";
+          return null;
+        }
+        log("session ended by another login, logging in again once");
+        return send(
+          url,
+          args: args,
+          method: method,
+          isRetryAfterUnexpectedLogout: true,
+        );
+      }
       await _handleError(e);
       onAddProtocolItem!(NetworkProtocolItem((b) => b
         ..address = baseAddress + url
@@ -553,6 +579,23 @@ class Wrapper {
       );
     }
     return responseData;
+  }
+
+  /// What the register answers once another login has ended this session:
+  /// 401 with `{"forceLogout": true, "noSession": true}`.
+  static bool isSessionTakenOver(int? statusCode, dynamic body) {
+    if (statusCode != 401) return false;
+    final map = body is String ? _tryDecode(body) : body;
+    return map is Map &&
+        (map["forceLogout"] == true || map["noSession"] == true);
+  }
+
+  static dynamic _tryDecode(String body) {
+    try {
+      return json.decode(body);
+    } on FormatException {
+      return null;
+    }
   }
 
   Future<void> _handleError(Exception e) async {

@@ -220,9 +220,8 @@ class _SubjectWidgetState extends State<SubjectWidget> {
                       children: [
                         GradeTrendContainer(
                           subjectName: widget.subject.name,
-                          grades:
-                              widget.subject.basicGrades(widget.semester) ??
-                                  const [],
+                          grades: widget.subject.basicGrades(widget.semester) ??
+                              const [],
                         ),
                         if (widget.sortByType)
                           ...Subject.sortByType(entries).entries.map(

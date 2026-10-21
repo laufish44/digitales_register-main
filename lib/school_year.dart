@@ -29,7 +29,10 @@
 /// them.
 library;
 
+import 'dart:math' as math;
+
 import 'package:dr/app_state.dart';
+import 'package:dr/remote_config.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart';
 
@@ -71,7 +74,13 @@ class SchoolCalendar {
 /// test counts them, so a typo cannot go unnoticed. The sheet itself prints
 /// Fr 35 and 175, but the Faschingsferien start on Friday 5 February (as the
 /// school confirmed), which its totals do not reflect.
+///
+/// A calendar in the remote config (`remote/config.json`) wins over the one
+/// built in here: that is how a new school year, or a correction, reaches the
+/// app without a new version.
 SchoolCalendar? officialSchoolCalendar(int startYear) {
+  final remote = RemoteConfig.current?.schoolCalendars[startYear];
+  if (remote != null) return remote;
   switch (startYear) {
     case 2026:
       return SchoolCalendar(
@@ -187,7 +196,14 @@ UtcDateTime defaultLastSchoolDayFor(UtcDateTime date) {
 /// Bumped whenever [officialSchoolCalendar] gains or corrects a year, so a
 /// stored state with older holidays is brought up to date once, see
 /// `SettingsState.schoolCalendarRevision`.
-const schoolCalendarRevision = 2;
+const builtInSchoolCalendarRevision = 2;
+
+/// The revision in force: the built-in one, or the remote config's when that
+/// is higher — raising it in the file replaces the stored holidays once.
+int get schoolCalendarRevision => math.max(
+      builtInSchoolCalendarRevision,
+      RemoteConfig.current?.calendarRevision ?? 0,
+    );
 
 /// Whether stored [holidays] and [lastSchoolDay] belong to a school year that
 /// is over (or never had any), so the defaults of the current one should
