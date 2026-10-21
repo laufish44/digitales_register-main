@@ -58,6 +58,7 @@ import 'package:dr/notifications/notification_watcher.dart';
 import 'package:dr/remote_config.dart';
 import 'package:dr/school_year.dart';
 import 'package:dr/serializers.dart';
+import 'package:dr/settings_sync.dart';
 import 'package:dr/ui/app_banners.dart';
 import 'package:dr/ui/dialog.dart';
 import 'package:dr/update/update_service.dart';
@@ -97,6 +98,7 @@ List<Middleware<AppState, AppStateBuilder, AppActions>> middleware({
       if (includeErrorMiddleware) _errorMiddleware,
       _saveStateMiddleware,
       homeWidgetsMiddleware,
+      settingsSyncMiddleware,
       (MiddlewareBuilder<AppState, AppStateBuilder, AppActions>()
             ..add(LoginActionsNames.updateLogout, _tap)
             ..add(SettingsActionsNames.saveNoData, _saveNoData)
@@ -239,10 +241,41 @@ Future<void> _noInternet(
         hard: false,
         logoutForcedByServer: true,
       );
+      _watchForConnection(api);
     } else {
+      _reconnect?.cancel();
+      _reconnect = null;
       await api.actions.dashboardActions.refresh();
     }
   }
+}
+
+/// While marked offline, looks for the connection again on its own — before,
+/// it took the button or a restart, even long after the network was back.
+/// Every 15 seconds at first, then every minute.
+Timer? _reconnect;
+
+void _watchForConnection(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api) {
+  _reconnect?.cancel();
+  var tries = 0;
+  var checking = false;
+  _reconnect = Timer.periodic(const Duration(seconds: 15), (timer) async {
+    if (!api.state.noInternet) {
+      timer.cancel();
+      return;
+    }
+    tries++;
+    // After two minutes only every fourth tick, i.e. once a minute.
+    if (tries > 8 && tries % 4 != 0) return;
+    if (checking) return;
+    checking = true;
+    try {
+      await api.actions.refreshNoInternet();
+    } finally {
+      checking = false;
+    }
+  });
 }
 
 Future<void> _load(MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
@@ -389,6 +422,10 @@ Future<void> _loggedIn(MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
   await startWatchingForNotifications(api);
   unawaited(_checkForUpdate(api));
   unawaited(_refreshRemoteConfig());
+  // The same settings on every device, kept in the register (settings_sync).
+  if (!action.payload.offlineOnly) {
+    unawaited(SettingsSync.instance.syncAfterLogin(api, wrapper));
+  }
   // Not awaited: it takes a minute or so and nothing on screen waits for it.
   if (!action.payload.offlineOnly) unawaited(prefetchWholeCalendar(api));
 }

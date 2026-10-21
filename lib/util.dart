@@ -233,13 +233,27 @@ String fixupUrl(String enteredUrl) {
   return url;
 }
 
+/// Whether [url] cannot be reached right now.
+///
+/// Asks twice before saying so: right after waking from standby, or while the
+/// phone switches between wifi and mobile data, the first request often fails
+/// although the connection is fine a second later — and a wrong "offline"
+/// stayed until the user pressed the button. Each attempt gives up after a
+/// few seconds instead of hanging.
 Future<bool> cannotConnectTo(String url) async {
-  var noInternet = false;
-  try {
-    final result = await http.get(Uri.parse(url));
-    noInternet = result.statusCode != 200;
-  } catch (e) {
-    noInternet = true;
+  Future<bool> attempt() async {
+    try {
+      final result =
+          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+      // Any answer means there is a connection; only a server that is down
+      // (5xx, e.g. maintenance) counts as not reachable.
+      return result.statusCode >= 500;
+    } catch (e) {
+      return true;
+    }
   }
-  return noInternet;
+
+  if (!await attempt()) return false;
+  await Future<void>.delayed(const Duration(seconds: 2));
+  return attempt();
 }

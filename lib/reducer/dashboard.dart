@@ -23,6 +23,7 @@ import 'package:collection/collection.dart' show IterableExtension;
 
 import 'package:dr/actions/dashboard_actions.dart';
 import 'package:dr/app_state.dart';
+import 'package:dr/settings_sync.dart' show isSettingsSyncText;
 import 'package:dr/data.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart';
@@ -176,9 +177,13 @@ void _loaded(DashboardState state, Action<DaysLoadedPayload> action,
 
 Day _parseDay(Map data, bool deduplicate) {
   final ListBuilder<Homework> items = ListBuilder(
-    getList(data["items"])!.map<Homework>(
-      (dynamic m) => tryParse(getMap(m)!, _parseHomework),
-    ),
+    getList(data["items"])!
+        // The synced settings are stored as reminders; they are not entries.
+        .where((dynamic m) =>
+            !isSettingsSyncText(getString(getMap(m)?["subtitle"])))
+        .map<Homework>(
+          (dynamic m) => tryParse(getMap(m)!, _parseHomework),
+        ),
   );
   if (deduplicate) {
     for (var i = 0; i < items.length; i++) {

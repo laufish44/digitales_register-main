@@ -131,6 +131,11 @@ Future<void> main(List<String> args) async {
           store.actions.restarted.call,
           // this might not finish in time:
           store.actions.saveState.call,
+          // Back in front while marked offline: look again right away,
+          // however short the absence was.
+          onResume: () {
+            if (store.state.noInternet) store.actions.refreshNoInternet();
+          },
         ),
       );
     },
@@ -252,7 +257,10 @@ class LifecycleObserver with WidgetsBindingObserver {
   final VoidCallback onForeground;
   final VoidCallback onBackground;
 
-  LifecycleObserver(this.onForeground, this.onBackground);
+  LifecycleObserver(this.onForeground, this.onBackground, {this.onResume});
+
+  /// Every return to the app, also after a moment away.
+  final VoidCallback? onResume;
 
   /// How long the app has to be out of view before coming back refreshes it
   /// (#9). Switching to another window for a moment does not.
@@ -270,6 +278,8 @@ class LifecycleObserver with WidgetsBindingObserver {
       if (awaySince != null &&
           DateTime.now().difference(awaySince) >= refreshAfter) {
         onForeground();
+      } else if (awaySince != null) {
+        onResume?.call();
       }
     } else {
       _awaySince ??= DateTime.now();
