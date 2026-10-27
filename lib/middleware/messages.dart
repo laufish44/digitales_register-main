@@ -107,6 +107,13 @@ Future<void> _markAsRead(
     ActionHandler next,
     Action<int> action) async {
   await next(action);
+  // The message was opened: its notification has done its job (#25).
+  for (final n
+      in api.state.notificationState.notifications ?? const <Notification>[]) {
+    if (n.type == "message" && n.objectId == action.payload) {
+      unawaited(LocalNotificationService.cancel(n.id));
+    }
+  }
   final dynamic response = await wrapper.send(
     "api/message/markAsRead",
     args: {"messageId": action.payload},

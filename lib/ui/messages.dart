@@ -18,6 +18,7 @@
 import 'dart:convert';
 
 import 'package:badges/badges.dart' as badge;
+import 'package:dr/ui/current_lesson.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/ui/animated_linear_progress_indicator.dart';
@@ -58,7 +59,7 @@ class MessagesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const ResponsiveAppBar(
-        title: Text("Mitteilungen"),
+        title: PageTitle("Mitteilungen"),
       ),
       floatingActionButton: composeEnabled
           ? FloatingActionButton.extended(
@@ -209,6 +210,8 @@ class _MessageWidgetState extends State<MessageWidget> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // One text with line breaks, so copying the lines keeps
+                    // them apart (#20).
                     Text.rich(
                       TextSpan(
                         children: [
@@ -217,25 +220,13 @@ class _MessageWidgetState extends State<MessageWidget> {
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           TextSpan(
-                              text: DateFormat("d.M.yy H:mm")
-                                  .format(widget.message.timeSent))
-                        ],
-                      ),
-                    ),
-                    Text.rich(
-                      TextSpan(
-                        children: [
+                              text:
+                                  "${DateFormat("d.M.yy H:mm").format(widget.message.timeSent)}\n"),
                           const TextSpan(
                             text: "Von: ",
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                          TextSpan(text: widget.message.fromName)
-                        ],
-                      ),
-                    ),
-                    Text.rich(
-                      TextSpan(
-                        children: [
+                          TextSpan(text: "${widget.message.fromName}\n"),
                           const TextSpan(
                             text: "An: ",
                             style: TextStyle(fontWeight: FontWeight.bold),

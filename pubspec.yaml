@@ -7,7 +7,7 @@ description: A new Flutter project.
 # Both the version and the builder number may be overridden in flutter
 # build by specifying --build-name and --build-number, respectively.
 # Read more about versioning at semver.org.
-version: 8.8.0+60
+version: 8.9.0+61
 
 publish_to: none
 
@@ -81,6 +81,7 @@ dependencies:
   # removed v1 embedding (PluginRegistry.Registrar) and no longer compiles.
   app_links: ^6.3.2
   url_launcher: ^6.1.0
+  file_picker: ^11.0.3
 
 dependency_overrides:
   file: ^6.1.4
@@ -156,7 +157,7 @@ msix_config:
   # the notification registration (app user model id) keeps working.
   identity_name: 2097MichaelDebertol.DigitalesRegister
   publisher: CN=2508760A-808B-4829-867A-4DB53593750E
-  msix_version: 8.8.0.0
+  msix_version: 8.9.0.0
   logo_path: assets/4.0x/transparent.png
   architecture: x64
   capabilities: "internetClient"

@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with digitales_register.  If not, see <http://www.gnu.org/licenses/>.
 
+import 'package:dr/ui/current_lesson.dart';
 import 'package:dr/actions/absences_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/container/absence_group_container.dart';
@@ -74,7 +75,7 @@ class AbsencesPage extends StatelessWidget {
     return Scaffold(
       // The statistics used to hang off this app bar; they have their own
       // entry in the sidebar now.
-      appBar: const ResponsiveAppBar(title: Text("Absenzen")),
+      appBar: const ResponsiveAppBar(title: PageTitle("Absenzen")),
       body: LastFetchedOverlay(
         lastFetched: state.lastFetched,
         noInternet: noInternet,
@@ -245,7 +246,13 @@ class AbsencesBody extends StatelessWidget {
           final index = state.absences.length - n - 1;
           return AbsenceGroupContainer(
             group: index,
-            onJustify: entryEnabled && !state.submitting
+            // Only an absence still waiting for it can be justified; one that
+            // is already "entschuldigt" or "nicht entschuldigt" stays as the
+            // school decided (#23).
+            onJustify: entryEnabled &&
+                    !state.submitting &&
+                    state.absences[index].justified ==
+                        AbsenceJustified.notYetJustified
                 ? () => _justify(context, state.absences[index])
                 : null,
           );

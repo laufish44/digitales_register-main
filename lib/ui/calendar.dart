@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with digitales_register.  If not, see <http://www.gnu.org/licenses/>.
 
+import 'package:dr/ui/current_lesson.dart';
 import 'package:dr/container/calendar_container.dart';
 import 'package:dr/container/calendar_detail_container.dart';
 import 'package:dr/container/calendar_week_container.dart';
@@ -229,7 +230,7 @@ class _CalendarState extends State<Calendar> with TickerProviderStateMixin {
                   children: [
                     Scaffold(
                       appBar: ResponsiveAppBar(
-                        title: const Text("Kalender"),
+                        title: const PageTitle("Kalender"),
                         actions: <Widget>[
                           if (toMonday(now) != widget.vm.currentMonday)
                             TextButton(

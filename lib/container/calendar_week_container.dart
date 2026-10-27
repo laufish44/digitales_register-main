@@ -20,6 +20,7 @@ import 'package:built_value/built_value.dart';
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
+import 'package:dr/lesson_times.dart';
 import 'package:dr/ui/calendar_week.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:flutter/material.dart' hide Builder;
@@ -64,6 +65,9 @@ abstract class CalendarWeekViewModel
   bool get colorBackground;
   BuiltMap<String, SubjectTheme> get subjectThemes;
 
+  /// When the lessons run, to grey out the ones that are over (#21).
+  BuiltList<LessonTime> get lessonTimes;
+
   factory CalendarWeekViewModel(
           [void Function(CalendarWeekViewModelBuilder)? updates]) =
       _$CalendarWeekViewModel;
@@ -86,7 +90,9 @@ abstract class CalendarWeekViewModel
         ..noInternet = state.noInternet
         ..selection = state.calendarState.selection?.toBuilder()
         ..colorBackground = state.settingsState.calendarColorBackground
-        ..subjectThemes = state.settingsState.subjectThemes.toBuilder(),
+        ..subjectThemes = state.settingsState.subjectThemes.toBuilder()
+        ..lessonTimes = ListBuilder(
+            LessonTimes.resolve(state.settingsState.lessonSchedule)),
     );
   }
 }

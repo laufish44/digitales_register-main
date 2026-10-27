@@ -64,6 +64,8 @@ Future<void> _deleteNotification(
     ActionHandler next,
     Action<Notification> action) async {
   await next(action);
+  // Read here: no longer needed in the notification centre (#25).
+  unawaited(LocalNotificationService.cancel(action.payload.id));
   await wrapper.send(
     "api/notification/markAsRead",
     args: {"id": action.payload.id},
@@ -75,6 +77,7 @@ Future<void> _deleteAllNotifications(
     ActionHandler next,
     Action<void> action) async {
   await next(action);
+  unawaited(LocalNotificationService.cancelAll());
   for (final n in api.state.notificationState.notifications!
       .where((n) => n.type == "message" && n.objectId != null)) {
     await api.actions.messagesActions.markAsRead(n.objectId!);

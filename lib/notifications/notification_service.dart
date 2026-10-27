@@ -180,4 +180,25 @@ class LocalNotificationService {
       log("failed to show notification", error: e, stackTrace: trace);
     }
   }
+
+  /// Takes a posted notification back out of the notification centre, e.g.
+  /// once it was read (#25). Never throws.
+  static Future<void> cancel(int id) async {
+    if (!await init()) return;
+    try {
+      await _plugin.cancel(id);
+    } catch (e) {
+      log("failed to cancel notification $id", error: e);
+    }
+  }
+
+  /// Takes back everything this app posted. Never throws.
+  static Future<void> cancelAll() async {
+    if (!await init()) return;
+    try {
+      await _plugin.cancelAll();
+    } catch (e) {
+      log("failed to cancel notifications", error: e);
+    }
+  }
 }

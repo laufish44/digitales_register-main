@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with digitales_register.  If not, see <http://www.gnu.org/licenses/>.
 
+import 'package:dr/ui/current_lesson.dart';
 import 'package:dr/container/certificate_container.dart';
 import 'package:dr/ui/last_fetched_overlay.dart';
 import 'package:dr/ui/no_internet.dart';
@@ -29,7 +30,7 @@ class Certificate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const ResponsiveAppBar(title: Text("Zeugnis")),
+      appBar: const ResponsiveAppBar(title: PageTitle("Zeugnis")),
       body: vm.unavailable
           ? const _CertificateUnavailable()
           : vm.html == null

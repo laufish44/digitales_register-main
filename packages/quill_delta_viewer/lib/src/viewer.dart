@@ -10,7 +10,7 @@ class QuillDeltaViewer extends StatelessWidget {
   const QuillDeltaViewer({Key? key, required this.delta}) : super(key: key);
   @override
   Widget build(BuildContext context) {
-    return render(removeLastNewline(isolateLines(delta)), context);
+    return render(isolateLines(delta), context);
   }
 
   /// Splits all operations at newlines
@@ -42,115 +42,48 @@ class QuillDeltaViewer extends StatelessWidget {
     return operations;
   }
 
-  List<Operation> removeLastNewline(List<Operation> operations) {
-    while (operations.last.stringData.isEmpty) {
-      operations.removeLast();
-    }
-    return operations
-      ..add(
-        removeTrailingNewline(
-          operations.removeLast(),
-        ),
-      );
-  }
-
-  Operation removeTrailingNewline(Operation operation) {
-    if (operation.stringData.lastIndexOf("\n") ==
-        operation.stringData.length - 1) {
-      return Operation.insert(
-        operation.stringData.substring(
-          0,
-          operation.stringData.length - 1,
-        ),
-      );
-    } else {
-      return operation;
-    }
-  }
-
+  /// The whole message as one text, lines separated by real line breaks.
+  ///
+  /// It used to be a column with one text per line or paragraph. That looked
+  /// the same, but selecting across lines and copying lost every line break
+  /// (#20): a selection spanning several texts is joined without anything in
+  /// between. One text keeps them. List items get a bullet at the start of
+  /// their line instead of a row of their own.
   Widget render(List<Operation> ops, BuildContext context) {
-    final reversed = ops.reversed.toList();
-    final widgets = <Widget>[];
-    var spans = <InlineSpan>[];
+    final spans = <InlineSpan>[];
+    var line = <InlineSpan>[];
 
-    /// Whether we previously rendered a block.
-    /// blocks always go to a new line automatically, so _one_
-    /// newline in front should be removed
-    var renderedBlock = false;
+    void endLine(Map<String, dynamic>? blockAttributes) {
+      if (blockAttributes?["list"] != null) {
+        spans.add(const TextSpan(text: "•  "));
+      }
+      spans.addAll(line);
+      spans.add(const TextSpan(text: "\n"));
+      line = [];
+    }
 
-    for (var i = 0; i < reversed.length; i++) {
-      var op = reversed[i];
-      if (op.data == "\n") {
-        if (spans.isNotEmpty) {
-          widgets.add(
-            Text.rich(
-              TextSpan(
-                children: spans.reversed.toList(),
-              ),
-            ),
-          );
-          spans = [];
+    for (final op in ops) {
+      final text = op.stringData;
+      if (text.endsWith("\n")) {
+        final content = text.substring(0, text.length - 1);
+        if (content.isNotEmpty) {
+          line.add(
+              renderText(Operation.insert(content, op.attributes), context));
         }
-        var use = <Operation>[];
-        while (reversed.length > i + 1 &&
-            !reversed[i + 1].stringData.endsWith("\n")) {
-          use.add(reversed[i + 1]);
-          i++;
-        }
-        use = use.reversed.toList();
-        widgets.add(renderBlock(use..add(op), context));
-        renderedBlock = true;
-      } else {
-        if (renderedBlock) {
-          op = removeTrailingNewline(op);
-        }
-        spans.add(renderText(op, context));
-        renderedBlock = false;
+        endLine(op.attributes);
+      } else if (text.isNotEmpty) {
+        line.add(renderText(op, context));
       }
     }
-    if (spans.isNotEmpty) {
-      widgets.add(
-        Text.rich(
-          TextSpan(
-            children: spans.reversed.toList(),
-          ),
-        ),
-      );
+    if (line.isNotEmpty) endLine(null);
+    // Quill ends every document with a newline; trailing ones would only add
+    // empty space below the text.
+    while (spans.isNotEmpty &&
+        spans.last is TextSpan &&
+        (spans.last as TextSpan).text == "\n") {
+      spans.removeLast();
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: widgets.reversed.toList(),
-    );
-  }
-
-  Widget renderBlock(List<Operation> ops, BuildContext context) {
-    final blockOperation = ops.last;
-
-    bool list = false;
-    if (blockOperation.attributes != null) {
-      list = blockOperation.attributes!["list"] != null;
-    }
-    final text = Text.rich(
-      TextSpan(
-        children: removeLastNewline(ops)
-            .map(
-              (e) => renderText(e, context),
-            )
-            .toList(),
-      ),
-    );
-
-    if (list) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("•"),
-          const SizedBox(width: 2.5),
-          Expanded(child: text),
-        ],
-      );
-    }
-    return text;
+    return Text.rich(TextSpan(children: spans));
   }
 
   TextSpan renderText(Operation op, BuildContext context) {
@@ -161,7 +94,9 @@ class QuillDeltaViewer extends StatelessWidget {
     bool underline = false;
     if (op.attributes != null) {
       bold = op.attributes!["bold"] == true;
-      italics = op.attributes!["italics"] == true;
+      // Quill calls it "italic"; "italics" was what this used to check.
+      italics = op.attributes!["italic"] == true ||
+          op.attributes!["italics"] == true;
       link = op.attributes!["link"] as String?;
       strike = op.attributes!["strike"] == true;
       underline = op.attributes!["underline"] == true;

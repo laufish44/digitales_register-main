@@ -581,6 +581,48 @@ class Wrapper {
     return responseData;
   }
 
+  /// Uploads [file] as a multipart form, the way the web app's file uploader
+  /// does (field "file" plus [fields]). Returns the decoded answer, or null.
+  Future<dynamic> upload(
+    String url,
+    File file, {
+    Map<String, Object?> fields = const {},
+    String? fileName,
+    bool isRetryAfterUnexpectedLogout = false,
+  }) async {
+    if (demoMode) return null;
+    if (!await ensureLoggedIn(
+      isRetryAfterUnexpectedLogout: isRetryAfterUnexpectedLogout,
+    )) {
+      return null;
+    }
+    try {
+      final form = FormData.fromMap({
+        ...fields,
+        "file": await MultipartFile.fromFile(
+          file.path,
+          filename: fileName ?? file.uri.pathSegments.last,
+        ),
+      });
+      final response = await dio.post<dynamic>(baseAddress + url, data: form);
+      final data = response.data;
+      return data is String ? _tryDecode(data) ?? data : data;
+    } on DioException catch (e) {
+      if (isSessionTakenOver(e.response?.statusCode, e.response?.data) &&
+          !isRetryAfterUnexpectedLogout) {
+        return upload(url, file,
+            fields: fields,
+            fileName: fileName,
+            isRetryAfterUnexpectedLogout: true);
+      }
+      await _handleError(e);
+      return null;
+    } on Exception catch (e) {
+      await _handleError(e);
+      return null;
+    }
+  }
+
   /// What the register answers once another login has ended this session:
   /// 401 with `{"forceLogout": true, "noSession": true}`.
   static bool isSessionTakenOver(int? statusCode, dynamic body) {

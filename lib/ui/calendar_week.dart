@@ -20,6 +20,7 @@ import 'package:dr/app_state.dart';
 import 'package:dr/container/calendar_week_container.dart';
 import 'package:dr/data.dart';
 import 'package:dr/main.dart';
+import 'package:dr/school_time.dart';
 import 'package:dr/school_year.dart' show calculateEaster;
 import 'package:dr/ui/last_fetched_overlay.dart';
 import 'package:dr/ui/no_internet.dart';
@@ -51,30 +52,36 @@ class CalendarWeek extends StatelessWidget {
         : LastFetchedOverlay(
             lastFetched: vm.days.first.lastFetched,
             noInternet: vm.noInternet,
-            child: Column(
-              children: <Widget>[
-                Expanded(
-                  child: Row(
-                    children: vm.days
-                        .map(
-                          (d) => Expanded(
-                            child: CalendarDayWidget(
-                              calendarDay: d,
-                              max: latestHour,
-                              subjectNicks: vm.subjectNicks,
-                              isSelected: vm.selection?.date == d.date,
-                              selectedHour: vm.selection?.date == d.date
-                                  ? vm.selection?.hour
-                                  : null,
-                              colorBackground: vm.colorBackground,
-                              subjectThemes: vm.subjectThemes,
+            // Ticks every minute, so lessons grey out as they end (#21).
+            child: SchoolClock(
+              interval: const Duration(minutes: 1),
+              builder: (context, now) => Column(
+                children: <Widget>[
+                  Expanded(
+                    child: Row(
+                      children: vm.days
+                          .map(
+                            (d) => Expanded(
+                              child: CalendarDayWidget(
+                                calendarDay: d,
+                                now: now,
+                                lessonTimes: vm.lessonTimes.toList(),
+                                max: latestHour,
+                                subjectNicks: vm.subjectNicks,
+                                isSelected: vm.selection?.date == d.date,
+                                selectedHour: vm.selection?.date == d.date
+                                    ? vm.selection?.hour
+                                    : null,
+                                colorBackground: vm.colorBackground,
+                                subjectThemes: vm.subjectThemes,
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(),
+                          )
+                          .toList(),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
   }
@@ -88,8 +95,12 @@ class _HoursChunk extends StatelessWidget {
   final bool isSelected;
   final bool colorBackground;
   final BuiltMap<String, SubjectTheme> subjectThemes;
+  final UtcDateTime now;
+  final List<LessonTime> lessonTimes;
 
   const _HoursChunk({
+    required this.now,
+    required this.lessonTimes,
     required this.subjectNicks,
     required this.hours,
     required this.day,
@@ -133,6 +144,8 @@ class _HoursChunk extends StatelessWidget {
                       subjectNicks: subjectNicks,
                       day: day,
                       isSelected: selectedHour == hours[n ~/ 2].fromHour,
+                      isOver: lessonIsOver(
+                          day.date, hours[n ~/ 2], lessonTimes, now),
                       backgroundColor: colorBackground
                           ? Color(subjectThemes[hours[n ~/ 2].subject]!.color)
                               .withOpacity(0.25)
@@ -165,8 +178,14 @@ class CalendarDayWidget extends StatelessWidget {
   final bool colorBackground;
   final BuiltMap<String, SubjectTheme> subjectThemes;
 
+  /// School time, for greying out lessons that are over.
+  final UtcDateTime now;
+  final List<LessonTime> lessonTimes;
+
   const CalendarDayWidget({
     super.key,
+    required this.now,
+    this.lessonTimes = const [],
     required this.max,
     required this.calendarDay,
     required this.subjectNicks,
@@ -208,6 +227,8 @@ class CalendarDayWidget extends StatelessWidget {
             Expanded(
               flex: chunks[i].last.toHour - chunks[i].first.fromHour + 1,
               child: _HoursChunk(
+                now: now,
+                lessonTimes: lessonTimes,
                 hours: chunks[i],
                 subjectNicks: subjectNicks,
                 day: calendarDay,
@@ -258,8 +279,12 @@ class HourWidget extends StatelessWidget {
   final Color backgroundColor;
   final Color selectedBackgroundColor;
 
+  /// Over already: drawn faded, so "now" is easy to find (#21).
+  final bool isOver;
+
   const HourWidget({
     super.key,
+    this.isOver = false,
     required this.hour,
     required this.subjectNicks,
     required this.day,
@@ -289,42 +314,45 @@ class HourWidget extends StatelessWidget {
                   : null,
               color: isSelected ? selectedBackgroundColor : backgroundColor,
             ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    subjectNicks[hour.subject.toLowerCase()] ?? hour.subject,
-                    maxLines: 1,
-                    softWrap: false,
-                  ),
-                  if (hour.teachers.isNotEmpty)
-                    const SizedBox(
-                      height: 5,
-                    ),
-                  for (final teacher in hour.teachers)
+            child: Opacity(
+              opacity: isOver ? 0.4 : 1,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                     Text(
-                      teacher.lastName,
+                      subjectNicks[hour.subject.toLowerCase()] ?? hour.subject,
                       maxLines: 1,
                       softWrap: false,
-                      style: DefaultTextStyle.of(context)
-                          .style
-                          .copyWith(fontSize: 11),
                     ),
-                  if (hour.rooms.isNotEmpty)
-                    const SizedBox(
-                      height: 5,
-                    ),
-                  for (final room in hour.rooms)
-                    Text(
-                      room,
-                      maxLines: 1,
-                      softWrap: false,
-                      style: DefaultTextStyle.of(context)
-                          .style
-                          .copyWith(fontSize: 11),
-                    ),
-                ],
+                    if (hour.teachers.isNotEmpty)
+                      const SizedBox(
+                        height: 5,
+                      ),
+                    for (final teacher in hour.teachers)
+                      Text(
+                        teacher.lastName,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: DefaultTextStyle.of(context)
+                            .style
+                            .copyWith(fontSize: 11),
+                      ),
+                    if (hour.rooms.isNotEmpty)
+                      const SizedBox(
+                        height: 5,
+                      ),
+                    for (final room in hour.rooms)
+                      Text(
+                        room,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: DefaultTextStyle.of(context)
+                            .style
+                            .copyWith(fontSize: 11),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),

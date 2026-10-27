@@ -18,6 +18,7 @@
 /// One page with everything the app can work out from the register's data.
 library;
 
+import 'package:dr/ui/current_lesson.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/lesson_times.dart';
@@ -82,7 +83,7 @@ class StatisticsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const ResponsiveAppBar(title: Text("Statistik")),
+      appBar: const ResponsiveAppBar(title: PageTitle("Statistik")),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 32),
         children: [

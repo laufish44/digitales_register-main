@@ -683,6 +683,7 @@ class SettingsPageWidget extends StatefulWidget {
   final OnSettingChanged<List<LessonTime>> onSetLessonSchedule;
   final OnSettingChanged<bool> onSetPrefetchWholeCalendar;
   final OnSettingChanged<int> onSetSemestersPerYear;
+  final OnSettingChanged<String> onSetStartPage;
   final VoidCallback onShowProfile;
   final SettingsViewModel vm;
 
@@ -730,6 +731,7 @@ class SettingsPageWidget extends StatefulWidget {
     required this.onSetLessonSchedule,
     required this.onSetPrefetchWholeCalendar,
     required this.onSetSemestersPerYear,
+    required this.onSetStartPage,
   });
 
   @override
@@ -942,6 +944,23 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
                 "Aussehen",
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
+            ),
+          ),
+          // #22: the page the app opens on.
+          ListTile(
+            title: const Text("Startseite"),
+            subtitle: const Text("Diese Seite öffnet sich nach dem Anmelden"),
+            trailing: DropdownButton<String>(
+              value: startPages.containsKey(widget.vm.startPage)
+                  ? widget.vm.startPage
+                  : startPageDashboard,
+              items: [
+                for (final page in startPages.entries)
+                  DropdownMenuItem(value: page.key, child: Text(page.value)),
+              ],
+              onChanged: (value) {
+                if (value != null) widget.onSetStartPage(value);
+              },
             ),
           ),
           ListTile(

@@ -112,6 +112,7 @@ class SettingsPageContainer extends StatelessWidget {
               actions.settingsActions.setPrefetchWholeCalendar.call,
           onSetSemestersPerYear:
               actions.settingsActions.setSemestersPerYear.call,
+          onSetStartPage: actions.settingsActions.setStartPage.call,
         );
       },
       connect: (state) {
@@ -162,6 +163,7 @@ class SettingsViewModel {
   final List<LessonTime> lessonSchedule;
   final bool prefetchWholeCalendar;
   final int semestersPerYear;
+  final String startPage;
 
   /// Lessons in a normal week according to the calendar, what "Stunden pro
   /// Woche" falls back to. Null before the calendar is loaded.
@@ -219,6 +221,7 @@ class SettingsViewModel {
             LessonTimes.resolve(state.settingsState.lessonSchedule),
         prefetchWholeCalendar = state.settingsState.prefetchWholeCalendar,
         semestersPerYear = state.settingsState.semestersPerYear,
+        startPage = state.settingsState.startPage,
         detectedWeeklyLessons =
             AbsenceStats.weeklyLessonsFromCalendar(state.calendarState),
         demoMode = state.isDemo;

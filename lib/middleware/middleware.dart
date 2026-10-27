@@ -412,9 +412,13 @@ Future<void> _loggedIn(MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
   } else {
     await next(action);
   }
+  // The start page from the settings (#22) — unless a link opened the app
+  // on a page of its own (those come as callbacks).
+  final redirected = api.state.loginState.callAfterLogin.isNotEmpty;
   for (final callback in api.state.loginState.callAfterLogin) {
     callback();
   }
+  if (!redirected) await _openStartPage(api);
   if (!action.payload.offlineOnly) {
     await api.actions.dashboardActions.load(api.state.dashboardState.future);
     await api.actions.notificationsActions.load();
@@ -428,6 +432,31 @@ Future<void> _loggedIn(MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
   }
   // Not awaited: it takes a minute or so and nothing on screen waits for it.
   if (!action.payload.offlineOnly) unawaited(prefetchWholeCalendar(api));
+}
+
+/// Once per start of the app: a second login (offline first, then online)
+/// must not pull the user back from a page they opened meanwhile.
+var _startPageOpened = false;
+
+Future<void> _openStartPage(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api) async {
+  if (_startPageOpened) return;
+  _startPageOpened = true;
+  final routing = api.actions.routingActions;
+  switch (api.state.settingsState.startPage) {
+    case "grades":
+      await routing.showGrades();
+    case "absences":
+      await routing.showAbsences();
+    case "calendar":
+      await routing.showCalendar();
+    case "certificate":
+      await routing.showCertificate();
+    case "messages":
+      await routing.showMessages();
+    case "statistics":
+      await routing.showStatistics();
+  }
 }
 
 /// Looks for a newer release once per session and offers it.
@@ -822,6 +851,15 @@ Future<dynamic> sendApiRequest(
   Map<String, Object?> args = const <String, Object?>{},
 }) =>
     wrapper.send(url, args: args);
+
+/// Uploads a file through the logged-in connection; see [Wrapper.upload].
+Future<dynamic> uploadApiFile(
+  String url,
+  File file, {
+  Map<String, Object?> fields = const {},
+  String? fileName,
+}) =>
+    wrapper.upload(url, file, fields: fields, fileName: fileName);
 
 Future<bool> canOpenFile(String fileName) async {
   return (await _attachmentFile(fileName)).existsSync();

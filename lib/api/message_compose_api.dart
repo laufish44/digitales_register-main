@@ -37,6 +37,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
 import 'dart:developer';
 
 import 'package:dr/middleware/middleware.dart';
@@ -223,13 +224,52 @@ class MessageComposeApi {
     );
   }
 
+  /// Uploads a file as an attachment of the message being written, as the
+  /// web app does before sending. Returns the attachment, or a reason why not.
+  Future<({MessageAttachmentDraft? attachment, String? error})>
+      uploadAttachment(File file) async {
+    final name = file.uri.pathSegments.last;
+    final dynamic response = await uploadApiFile(
+      "api/message/messageSubmissionUpload",
+      file,
+      fields: {"title": "", "categoryId": 0},
+      fileName: name,
+    );
+    final map = getMap(response);
+    if (map == null)
+      return (attachment: null, error: "Keine Antwort vom Server");
+    if (map["error"] != null) {
+      return (
+        attachment: null,
+        error: getString(map["message"]) ?? "Hochladen abgelehnt",
+      );
+    }
+    final id = getInt(map["submissionId"]);
+    if (id == null || id == 0) {
+      return (attachment: null, error: "Hochladen fehlgeschlagen");
+    }
+    return (
+      attachment: MessageAttachmentDraft.uploaded(
+        submissionId: id,
+        name: getString(map["originalName"]) ?? name,
+      ),
+      error: null,
+    );
+  }
+
   /// Sends the message. Returns null on success, or a message to show.
+  ///
+  /// [quote] is a Quill delta (its `ops`) put below the text in italics — the
+  /// message answered or forwarded, as e-mail programs do.
   Future<String?> send({
     required List<RecipientDetailGroup> recipients,
     required String subject,
     required String text,
     required MessageSendType type,
     required MessagePermission permission,
+    List<MessageAttachmentDraft> attachments = const [],
+    String? quoteTitle,
+    List<dynamic>? quote,
   }) async {
     final dynamic response = await sendApiRequest(
       "api/message/sendMessage",
@@ -240,15 +280,13 @@ class MessageComposeApi {
           // The web app stores the body as a Quill delta, and the message list
           // renders it as one, so a plain paragraph has to be wrapped as well.
           "text": json.encode({
-            "ops": [
-              {"insert": text.endsWith("\n") ? text : "$text\n"}
-            ]
+            "ops": messageOps(text, quoteTitle: quoteTitle, quote: quote),
           }),
           "signatureRequired": type.signatureRequired,
           "responseRequired": type.responseRequired,
           "responseType": type.typeId,
           "permission": permission.id,
-          "submissions": const <Object>[],
+          "submissions": [for (final a in attachments) a.toJson()],
         },
       },
     );
@@ -261,4 +299,69 @@ class MessageComposeApi {
         ? "Die Mitteilung konnte nicht gesendet werden"
         : "Die Mitteilung wurde abgelehnt ($error)";
   }
+}
+
+/// The Quill delta of a message: [text], and below it — after an empty line —
+/// [quoteTitle] and the [quote] in italics.
+List<Map<String, Object?>> messageOps(
+  String text, {
+  String? quoteTitle,
+  List<dynamic>? quote,
+}) {
+  final ops = <Map<String, Object?>>[
+    {"insert": text.endsWith("\n") ? text : "$text\n"},
+  ];
+  if (quote == null || quote.isEmpty) return ops;
+  ops.add({"insert": "\n"});
+  if (quoteTitle != null) {
+    ops
+      ..add({
+        "insert": quoteTitle,
+        "attributes": {"italic": true},
+      })
+      ..add({"insert": "\n\n"});
+  }
+  for (final raw in quote) {
+    final op = getMap(raw);
+    final insert = op?["insert"];
+    if (insert is! String) continue;
+    final attributes =
+        Map<String, Object?>.from(getMap(op?["attributes"]) ?? {});
+    attributes["italic"] = true;
+    ops.add({"insert": insert, "attributes": attributes});
+  }
+  final last = ops.last["insert"]! as String;
+  if (!last.endsWith("\n")) ops.add({"insert": "\n"});
+  return ops;
+}
+
+/// An attachment of a message being written: a file uploaded for it, or one
+/// carried over from the message being forwarded.
+class MessageAttachmentDraft {
+  const MessageAttachmentDraft.uploaded({
+    required int this.submissionId,
+    required this.name,
+  })  : sourceMessageId = null,
+        sourceSubmissionId = null;
+
+  const MessageAttachmentDraft.forwarded({
+    required int this.sourceMessageId,
+    required int this.sourceSubmissionId,
+    required this.name,
+  }) : submissionId = null;
+
+  final int? submissionId;
+  final int? sourceMessageId, sourceSubmissionId;
+  final String name;
+
+  bool get isForwarded => sourceMessageId != null;
+
+  /// As the web app sends it.
+  Map<String, Object?> toJson() => isForwarded
+      ? {
+          "kind": "forwarded",
+          "sourceMessageId": sourceMessageId,
+          "sourceSubmissionId": sourceSubmissionId,
+        }
+      : {"kind": "temporary", "submissionId": submissionId};
 }

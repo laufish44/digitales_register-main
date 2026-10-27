@@ -81,4 +81,5 @@ abstract class SettingsActions extends ReduxActions {
 
   /// 1 or 2.
   abstract final ActionDispatcher<int> setSemestersPerYear;
+  abstract final ActionDispatcher<String> setStartPage;
 }

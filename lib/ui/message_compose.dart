@@ -22,10 +22,14 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:dr/api/message_compose_api.dart';
 import 'package:dr/data.dart';
 import 'package:dr/ui/messages.dart' show plainTextOfMessage;
+import 'package:dr/util.dart' show getList, getMap;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 /// How the compose screen was opened.
@@ -86,6 +90,15 @@ class _MessageComposePageState extends State<MessageComposePage> {
   int step = 0;
   String? error;
 
+  /// Files to send along: uploaded ones and, when forwarding, those of the
+  /// original message — as the website does (#24).
+  final attachments = <MessageAttachmentDraft>[];
+  bool uploading = false;
+
+  /// Whether the answered or forwarded message goes below the text, in
+  /// italics, as in an e-mail (#24).
+  bool includeQuote = true;
+
   @override
   void initState() {
     super.initState();
@@ -106,10 +119,16 @@ class _MessageComposePageState extends State<MessageComposePage> {
             : "$prefix$subject";
 
     if (widget.mode == ComposeMode.forward) {
-      final quoted = plainTextOfMessage(source.text);
-      textController.text = "\n\n----- Weitergeleitete Mitteilung -----\n"
-          "Von: ${source.fromName}\n"
-          "Betreff: ${source.subject}\n\n$quoted";
+      // The original's text goes below as a quote when sending (see
+      // _quoteOps); its files come along, as on the website.
+      attachments.addAll([
+        for (final file in source.attachments)
+          MessageAttachmentDraft.forwarded(
+            sourceMessageId: source.id,
+            sourceSubmissionId: file.id,
+            name: file.originalName,
+          ),
+      ]);
     }
 
     if (widget.mode == ComposeMode.reply && source.fromUserId != null) {
@@ -197,6 +216,96 @@ class _MessageComposePageState extends State<MessageComposePage> {
       selectedPermission != null &&
       !sending;
 
+  String get _quoteTitle => widget.mode == ComposeMode.forward
+      ? "Weitergeleitete Mitteilung:"
+      : "Antwort auf die Mitteilung:";
+
+  /// The original message as Quill operations, or null when it is not to be
+  /// quoted.
+  List<dynamic>? get _quote {
+    final source = widget.source;
+    if (source == null || !includeQuote) return null;
+    try {
+      return getList(getMap(jsonDecode(source.text))?["ops"]);
+    } catch (_) {
+      return [
+        {"insert": "${plainTextOfMessage(source.text)}\n"}
+      ];
+    }
+  }
+
+  Future<void> _addFiles() async {
+    final picked = await FilePicker.pickFiles(allowMultiple: true);
+    if (picked == null || !mounted) return;
+    setState(() {
+      uploading = true;
+      error = null;
+    });
+    for (final file in picked.files) {
+      final path = file.path;
+      if (path == null) continue;
+      final result = await widget.api.uploadAttachment(File(path));
+      if (!mounted) return;
+      setState(() {
+        if (result.attachment != null) {
+          attachments.add(result.attachment!);
+        } else {
+          error = "${file.name}: ${result.error}";
+        }
+      });
+    }
+    if (mounted) setState(() => uploading = false);
+  }
+
+  Widget _attachmentSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final a in attachments)
+              InputChip(
+                avatar: Icon(a.isForwarded ? Icons.forward : Icons.attach_file,
+                    size: 18),
+                label: Text(a.name),
+                onDeleted: () => setState(() => attachments.remove(a)),
+              ),
+          ],
+        ),
+        TextButton.icon(
+          onPressed: uploading || sending ? null : _addFiles,
+          icon: uploading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.attach_file),
+          label: Text(uploading ? "Wird hochgeladen …" : "Datei anhängen"),
+        ),
+        if (widget.source != null && widget.mode != ComposeMode.newMessage)
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(widget.mode == ComposeMode.forward
+                ? "Ursprüngliche Mitteilung unten anfügen"
+                : "Mitteilung, auf die du antwortest, unten anfügen"),
+            subtitle: includeQuote
+                ? Text(
+                    "$_quoteTitle ${plainTextOfMessage(widget.source!.text)}",
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontStyle: FontStyle.italic),
+                  )
+                : null,
+            value: includeQuote,
+            onChanged: (value) => setState(() => includeQuote = value),
+          ),
+      ],
+    );
+  }
+
   Future<void> _send() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -231,6 +340,9 @@ class _MessageComposePageState extends State<MessageComposePage> {
       text: textController.text.trim(),
       type: selectedType!,
       permission: selectedPermission!,
+      attachments: attachments,
+      quoteTitle: _quote == null ? null : _quoteTitle,
+      quote: _quote,
     );
     if (!mounted) return;
     setState(() => sending = false);
@@ -424,7 +536,9 @@ class _MessageComposePageState extends State<MessageComposePage> {
           minLines: 6,
           maxLines: 14,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+        _attachmentSection(),
+        const SizedBox(height: 8),
         if (types != null && types!.types.length > 1)
           DropdownButtonFormField<MessageSendType>(
             value: selectedType,

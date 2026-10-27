@@ -109,7 +109,11 @@ final settingsReducerBuilder = NestedReducerBuilder<AppState, AppStateBuilder,
   ..add(SettingsActionsNames.setPrefetchWholeCalendar,
       (s, a, b) => b.prefetchWholeCalendar = a.payload)
   ..add(SettingsActionsNames.setSemestersPerYear,
-      (s, a, b) => b.semestersPerYear = a.payload == 1 ? 1 : 2);
+      (s, a, b) => b.semestersPerYear = a.payload == 1 ? 1 : 2)
+  ..add(
+      SettingsActionsNames.setStartPage,
+      (s, a, b) => b.startPage =
+          startPages.containsKey(a.payload) ? a.payload : startPageDashboard);
 
 /// Drops entries that cannot be a lesson, so a mistyped time cannot make the
 /// timetable nonsensical.

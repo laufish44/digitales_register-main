@@ -405,6 +405,9 @@ abstract class SettingsState
   /// only ever show the first semester and there is nothing to switch.
   int get semestersPerYear;
 
+  /// The page the app opens on after logging in (#22): one of [startPages].
+  String get startPage;
+
   /// Which revision of the built-in school calendar the stored [holidays] and
   /// [lastSchoolDay] were last brought up to, see `schoolCalendarRevision` in
   /// school_year.dart. Null in a state stored before it existed.
@@ -471,7 +474,8 @@ abstract class SettingsState
       ..showAbsenceBudget = true
       ..lessonSchedule = ListBuilder(defaultLessonTimes)
       ..prefetchWholeCalendar = true
-      ..semestersPerYear = 2;
+      ..semestersPerYear = 2
+      ..startPage = startPageDashboard;
   }
 }
 
@@ -740,3 +744,15 @@ abstract class NetworkProtocolItem
       _$NetworkProtocolItem;
   NetworkProtocolItem._();
 }
+
+/// The pages the app can open on, see [SettingsState.startPage].
+const startPageDashboard = "dashboard";
+const startPages = <String, String>{
+  startPageDashboard: "Hausaufgaben",
+  "grades": "Noten",
+  "absences": "Absenzen",
+  "calendar": "Kalender",
+  "certificate": "Zeugnis",
+  "messages": "Mitteilungen",
+  "statistics": "Statistik",
+};

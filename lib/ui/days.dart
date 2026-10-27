@@ -18,6 +18,7 @@
 import 'package:badges/badges.dart' as badge;
 import 'package:built_collection/built_collection.dart';
 import 'package:deleteable_tile/deleteable_tile.dart';
+import 'package:dr/ui/current_lesson.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/container/dashboard_widgets_container.dart';
 import 'package:dr/container/days_container.dart';
@@ -391,7 +392,7 @@ class _DaysWidgetState extends State<DaysWidget> {
         ],
       ),
       homeAppBar: ResponsiveAppBar(
-        title: const Text("Register"),
+        title: const PageTitle("Register"),
         actions: <Widget>[
           if (widget.vm.noInternet)
             TextButton(

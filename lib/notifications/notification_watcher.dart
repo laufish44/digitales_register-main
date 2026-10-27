@@ -73,6 +73,19 @@ class NotificationWatcher {
     final fresh =
         entries.where((e) => !seen.contains(e.id.toString())).toList();
 
+    // Read since the last look — in the app or on another device, the
+    // register no longer lists them as unread: take their notifications out
+    // of the notification centre (#25). Cancelling one that was never posted
+    // does nothing.
+    final gone = seen.difference(currentIds.toSet());
+    for (final id in gone) {
+      final parsed = int.tryParse(id);
+      if (parsed != null) await LocalNotificationService.cancel(parsed);
+    }
+    if (gone.isNotEmpty || currentIds.isEmpty) {
+      await LocalNotificationService.cancel(_summaryNotificationId);
+    }
+
     // Record before showing, so a crash while posting cannot cause the same
     // notification to be shown again on the next poll.
     await NotificationStore.setSeenIds(currentIds);
