@@ -19,6 +19,7 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 
+import 'package:dr/diagnostics.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -249,6 +250,8 @@ Future<bool> cannotConnectTo(String url) async {
       // (5xx, e.g. maintenance) counts as not reachable.
       return result.statusCode >= 500;
     } catch (e) {
+      Diagnostics.log("verbindung",
+          "Verbindungstest-Versuch $url gescheitert: ${Diagnostics.describeError(e)}");
       return true;
     }
   }

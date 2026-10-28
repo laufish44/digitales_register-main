@@ -34,6 +34,7 @@ import 'package:dr/container/profile_container.dart';
 import 'package:dr/container/request_pass_reset_container.dart';
 import 'package:dr/container/settings_page.dart';
 import 'package:dr/desktop.dart';
+import 'package:dr/diagnostics.dart';
 import 'package:dr/middleware/middleware.dart';
 import 'package:dr/reducer/reducer.dart';
 import 'package:dr/remote_config.dart';
@@ -103,6 +104,7 @@ Future<void> main(List<String> args) async {
   // The school calendar and notices fetched last time, in place before the
   // state is loaded (see remote_config.dart).
   await RemoteConfig.loadCached();
+  await Diagnostics.start(version: appVersion);
   navigatorKey = GlobalKey();
   scaffoldKey = GlobalKey();
   scaffoldMessengerKey = GlobalKey();
@@ -272,6 +274,7 @@ class LifecycleObserver with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    Diagnostics.log("app", "Zustand: ${state.name}");
     if (state == AppLifecycleState.resumed) {
       final awaySince = _awaySince;
       _awaySince = null;
@@ -292,6 +295,7 @@ class LifecycleObserver with WidgetsBindingObserver {
 
 /// Utility to show a global Snack Bar
 void showSnackBar(String message) {
+  Diagnostics.log("meldung", message);
   scaffoldMessengerKey!.currentState!.showSnackBar(
     SnackBar(
       content: Text(message),

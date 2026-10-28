@@ -23,6 +23,7 @@ import 'package:dr/container/settings_page.dart';
 import 'package:dr/ui/autocomplete_options.dart';
 import 'package:dr/ui/dialog.dart';
 import 'package:dr/ui/donations.dart';
+import 'package:dr/diagnostics.dart';
 import 'package:dr/ui/feedback_dialog.dart';
 import 'package:dr/background/android_background.dart';
 import 'package:dr/fork_info.dart';
@@ -1611,6 +1612,16 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
               onTap: () {
                 Navigator.of(context).push(
                     MaterialPageRoute<void>(builder: (context) => Donate()));
+              },
+            ),
+          if (diagnosticsEnabled)
+            ListTile(
+              leading: const Icon(Icons.bug_report_outlined),
+              title: const Text("Diagnose-Protokoll öffnen"),
+              subtitle: Text(Diagnostics.directory?.path ?? "–"),
+              onTap: () {
+                final dir = Diagnostics.directory;
+                if (dir != null) Process.start("explorer.exe", [dir.path]);
               },
             ),
           ListTile(

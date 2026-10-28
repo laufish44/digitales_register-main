@@ -26,6 +26,7 @@ import 'package:dio/io.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/demo.dart';
+import 'package:dr/diagnostics.dart';
 import 'package:dr/main.dart';
 import 'package:dr/ui/dialog.dart';
 import 'package:dr/util.dart';
@@ -82,6 +83,7 @@ class Wrapper {
 
   Wrapper() {
     dio.interceptors.add(CookieManager(cookieJar));
+    if (diagnosticsEnabled) dio.interceptors.add(DiagnosticsInterceptor());
     dio.httpClientAdapter = IOHttpClientAdapter(
       createHttpClient: () => HttpClient()
         ..userAgent =
@@ -109,7 +111,10 @@ class Wrapper {
   bool noInternet = false;
   Future<bool> refreshNoInternet() async {
     final address = url != null ? baseAddress : "https://digitalesregister.it";
-    return noInternet = await cannotConnectTo(address);
+    noInternet = await cannotConnectTo(address);
+    Diagnostics.log("verbindung",
+        "Verbindungstest $address -> ${noInternet ? "KEINE VERBINDUNG" : "ok"}");
+    return noInternet;
   }
 
   String? error;
@@ -188,6 +193,8 @@ class Wrapper {
       )!;
     } catch (e) {
       loggedInCompleter.complete(false);
+      Diagnostics.log("login",
+          "Anmeldung: Anfrage gescheitert ${Diagnostics.describeError(e)}");
       log("Error while logging in (login failed)", error: e);
       if (e is TimeoutException || await refreshNoInternet()) {
         noInternet = true;
@@ -196,6 +203,7 @@ class Wrapper {
       return null;
     }
     if (getBool(response["loggedIn"]) ?? false) {
+      Diagnostics.log("login", "Anmeldung erfolgreich");
       log("login succeeded");
       this.user = user;
       this.pass = pass;
@@ -210,6 +218,8 @@ class Wrapper {
       try {
         config = await _loadConfigWithRetry();
       } catch (e) {
+        Diagnostics.log("login",
+            "Anmeldung ok, aber Startseite nicht lesbar: ${Diagnostics.describeError(e)} -> noInternet=true");
         log("login succeeded but the register page could not be read",
             error: e);
         loggedInCompleter.complete(false);
@@ -226,6 +236,8 @@ class Wrapper {
       _updateLogout();
       onConfigLoaded!();
     } else {
+      Diagnostics.log("login",
+          "Anmeldung abgelehnt: error=${response["error"]} message=${response["message"]}");
       log("login did not succeed");
       loggedInCompleter.complete(false);
       error = "[${response["error"]}] ${response["message"]}";
@@ -438,6 +450,8 @@ class Wrapper {
       // If we somehow did not yet notice that we were logged out set the flag now
       if (_serverLogoutTime != null &&
           DateTime.now().isAfter(_serverLogoutTime!)) {
+        Diagnostics.log("session",
+            "Sitzung laut Uhr abgelaufen (seit $_serverLogoutTime) -> neu anmelden");
         _loggedIn = Future.value(false);
       }
       if (isRetryAfterUnexpectedLogout) {
@@ -459,8 +473,12 @@ class Wrapper {
 
       if (!await _loggedIn) {
         if (user != null && pass != null) {
+          Diagnostics.log("session",
+              "nicht angemeldet -> Neuanmeldung (retry=$isRetryAfterUnexpectedLogout)");
           await login(user, pass, null, url);
           if (!await _loggedIn) {
+            Diagnostics.log("session",
+                "Neuanmeldung gescheitert, noInternet=$noInternet error=$error -> ${noInternet ? "OFFLINE" : "KOMPLETT ABGEMELDET"}");
             if (noInternet) {
               await actions.noInternet(true);
             } else {
@@ -468,9 +486,12 @@ class Wrapper {
             }
             return false;
           } else {
+            Diagnostics.log("session", "Neuanmeldung ok");
             onRelogin!();
           }
         } else {
+          Diagnostics.log(
+              "session", "nicht angemeldet und keine Zugangsdaten gespeichert");
           if (noInternet) {
             await actions.noInternet(true);
           }
@@ -533,6 +554,8 @@ class Wrapper {
           error = "Die Sitzung wurde von einer anderen Anmeldung beendet.";
           return null;
         }
+        Diagnostics.log(
+            "session", "401 Sitzung beendet ($url) -> einmal neu anmelden");
         log("session ended by another login, logging in again once");
         return send(
           url,
@@ -565,6 +588,8 @@ class Wrapper {
       // Possible causes might be that the user's time is off, or the user might be trying to log in from a different device at the same time.
 
       // If this is already a retry, don't retry again. We really don't know anymore what's going on.
+      Diagnostics.log("session",
+          "Antwort war Umleitung zum Login ($url), retry=$isRetryAfterUnexpectedLogout");
       if (isRetryAfterUnexpectedLogout) {
         log("retrying the request was unsuccessful, we seem to be still logged out.");
         throw UnexpectedLogoutException();
@@ -641,6 +666,8 @@ class Wrapper {
   }
 
   Future<void> _handleError(Exception e) async {
+    Diagnostics.log(
+        "fehler", "Anfrage gescheitert: ${Diagnostics.describeError(e)}");
     log("Error while sending request", error: e);
     if (e is TimeoutException || await refreshNoInternet()) {
       noInternet = true;
@@ -668,6 +695,8 @@ class Wrapper {
           },
         ),
       );
+      Diagnostics.log("session",
+          "Sitzung verlängern: ${result == null ? "keine Antwort" : "forceLogout=${result["forceLogout"]} bis=${result["newExpiration"]}"} (letzte Aktion vor ${DateTime.now().difference(lastInteraction).inSeconds}s)");
       if (result == null) {
         logout(hard: safeMode, logoutForcedByServer: true);
         return;
@@ -688,6 +717,8 @@ class Wrapper {
   }
 
   void logout({required bool hard, bool logoutForcedByServer = false}) {
+    Diagnostics.logWithStack(
+        "session", "logout(hard: $hard, vomServer: $logoutForcedByServer)");
     if (!logoutForcedByServer && _url != null) {
       dio.get<dynamic>("${baseAddress}logout");
     }

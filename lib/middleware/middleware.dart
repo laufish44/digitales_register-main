@@ -46,6 +46,7 @@ import 'package:dr/container/settings_page.dart';
 import 'package:dr/container/statistics_container.dart';
 import 'package:dr/data.dart';
 import 'package:dr/desktop.dart';
+import 'package:dr/diagnostics.dart';
 import 'package:dr/file_actions.dart';
 import 'package:dr/file_opener.dart';
 import 'package:dr/home_widgets.dart';
@@ -96,6 +97,7 @@ List<Middleware<AppState, AppStateBuilder, AppActions>> middleware({
 }) =>
     [
       if (includeErrorMiddleware) _errorMiddleware,
+      if (diagnosticsEnabled) _diagnosticsMiddleware,
       _saveStateMiddleware,
       homeWidgetsMiddleware,
       settingsSyncMiddleware,
@@ -124,6 +126,14 @@ List<Middleware<AppState, AppStateBuilder, AppActions>> middleware({
             ..combine(_settingsMiddleware))
           .build(),
     ];
+
+/// Diagnose builds: every action, to line the log up with what happened.
+NextActionHandler _diagnosticsMiddleware(
+        MiddlewareApi<AppState, AppStateBuilder, AppActions> api) =>
+    (ActionHandler next) => (Action action) async {
+          Diagnostics.log("aktion", action.name);
+          await next(action);
+        };
 
 NextActionHandler _errorMiddleware(
         MiddlewareApi<AppState, AppStateBuilder, AppActions> api) =>
@@ -234,6 +244,8 @@ Future<void> _noInternet(
   await next(action);
   final noInternet = api.state.noInternet;
   if (prevNoInternet != noInternet) {
+    Diagnostics.logWithStack(
+        "verbindung", "App jetzt ${noInternet ? "OFFLINE" : "online"}");
     if (noInternet) {
       showSnackBar("Keine Verbindung");
 
