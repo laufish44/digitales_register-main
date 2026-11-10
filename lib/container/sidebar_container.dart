@@ -101,15 +101,19 @@ class SidebarContainer extends StatelessWidget {
 /// Holidays often begin on a Saturday, and the calendar only lays out school
 /// days — so the first weekday of the break is what actually has a page. Just
 /// setting the week would leave the user to find the day themselves.
-void openCalendarOn(AppActions actions, UtcDateTime date) {
+///
+/// One step after the other: opening the calendar jumps to this week and
+/// clears the selection when it is done, which used to land after the jump
+/// and undo it.
+Future<void> openCalendarOn(AppActions actions, UtcDateTime date) async {
   final day = firstWeekdayFrom(date);
   final monday = toMonday(day);
-  actions.routingActions.showCalendar();
-  actions.calendarActions.setCurrentMonday(monday);
-  actions.calendarActions.load(monday);
-  actions.calendarActions.select(
+  await actions.routingActions.showCalendar();
+  await actions.calendarActions.setCurrentMonday(monday);
+  await actions.calendarActions.select(
     CalendarSelection((b) => b..date = day),
   );
+  await actions.calendarActions.load(monday);
 }
 
 /// [date] itself, or the next Monday when it falls on a weekend.

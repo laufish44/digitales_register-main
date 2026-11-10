@@ -47,7 +47,8 @@ class PageTitle extends StatelessWidget {
 }
 
 /// "Mathematik · noch 23:14" while a lesson is on, nothing otherwise. A
-/// double lesson counts down to the end of both.
+/// double lesson counts down to the end of both, with the end of the current
+/// hour in brackets.
 class CurrentLessonIndicator extends StatelessWidget {
   const CurrentLessonIndicator({super.key});
 
@@ -105,6 +106,15 @@ class CurrentLessonChip extends StatelessWidget {
     return h > 0 ? "$h:${two(m)}:${two(s)}" : "$m:${two(s)}";
   }
 
+  /// "Mat · noch 1:30:15 (40:15)": in the first hour of a double lesson the
+  /// end of that hour in brackets.
+  static String label(String subject, CurrentLesson lesson, UtcDateTime now) {
+    final total = "$subject · noch ${countdown(lesson.remaining(now))}";
+    return lesson.isDouble
+        ? "$total (${countdown(lesson.remainingInLesson(now))})"
+        : total;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -127,7 +137,7 @@ class CurrentLessonChip extends StatelessWidget {
             const SizedBox(width: 6),
             Flexible(
               child: Text(
-                "$subject · noch ${countdown(lesson.remaining(now))}",
+                label(subject, lesson, now),
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontFeatures: const [FontFeature.tabularFigures()],

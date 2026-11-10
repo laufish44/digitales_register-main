@@ -109,6 +109,9 @@ abstract class DaysViewModel
   bool get showNotifications;
   BuiltList<Day> get days;
 
+  /// To mark the days without school.
+  BuiltList<HolidayPeriod> get holidays;
+
   factory DaysViewModel([void Function(DaysViewModelBuilder)? updates]) =
       _$DaysViewModel;
   DaysViewModel._();
@@ -145,7 +148,8 @@ abstract class DaysViewModel
             (state.notificationState.notifications?.length ?? 0) > 0
         ..colorBorders = state.settingsState.dashboardColorBorders
         ..colorTestsInRed = state.settingsState.dashboardColorTestsInRed
-        ..subjectThemes = state.settingsState.subjectThemes.toBuilder(),
+        ..subjectThemes = state.settingsState.subjectThemes.toBuilder()
+        ..holidays = state.settingsState.holidays.toBuilder(),
     );
   }
 }

@@ -93,7 +93,8 @@ class CurrentLesson {
     required this.fromHour,
     required this.toHour,
     required this.end,
-  });
+    UtcDateTime? lessonEnd,
+  }) : lessonEnd = lessonEnd ?? end;
 
   final String subject;
   final int fromHour, toHour;
@@ -101,12 +102,26 @@ class CurrentLesson {
   /// When it ends — for a double lesson, the end of the second one.
   final UtcDateTime end;
 
+  /// When the single lesson going on now ends: in the first hour of a double
+  /// lesson the end of that hour, otherwise [end].
+  final UtcDateTime lessonEnd;
+
   Duration remaining(UtcDateTime now) => end.difference(now);
+  Duration remainingInLesson(UtcDateTime now) => lessonEnd.difference(now);
+
+  /// Whether there is a later hour after the one going on now.
+  bool get isDouble => lessonEnd != end;
 }
+
+/// A break longer than this splits a double lesson in two for the countdown.
+const doubleLessonMaxBreak = Duration(minutes: 5);
+
+typedef _Unit = ({int hour, UtcDateTime start, UtcDateTime end});
 
 /// The lesson going on at [now] in [calendar], or null (break, no school,
 /// calendar not loaded). Back-to-back lessons of the same subject count as
-/// one: the countdown runs to the end of both (#26).
+/// one: the countdown runs to the end of both (#26) — unless there is a
+/// break of more than [doubleLessonMaxBreak] between them.
 CurrentLesson? currentLesson(
   CalendarState calendar,
   List<LessonTime> times,
@@ -120,30 +135,74 @@ CurrentLesson? currentLesson(
   if (day == null) return null;
   final hours = day.hours.toList()
     ..sort((a, b) => a.fromHour.compareTo(b.fromHour));
-  for (var i = 0; i < hours.length; i++) {
-    final span = lessonSpan(today, hours[i], times);
-    if (span == null) continue;
-    if (now.isBefore(span.start) || !now.isBefore(span.end)) continue;
-    var end = span.end;
-    var toHour = hours[i].toHour;
-    for (var j = i + 1; j < hours.length; j++) {
-      final next = hours[j];
-      if (next.subject != hours[i].subject || next.fromHour != toHour + 1) {
-        break;
-      }
-      final nextSpan = lessonSpan(today, next, times);
-      if (nextSpan == null) break;
-      end = nextSpan.end;
-      toHour = next.toHour;
+  var i = 0;
+  while (i < hours.length) {
+    // The run of back-to-back hours of the same subject starting at i.
+    var k = i;
+    while (k + 1 < hours.length &&
+        hours[k + 1].subject == hours[i].subject &&
+        hours[k + 1].fromHour == hours[k].toHour + 1) {
+      k++;
     }
-    return CurrentLesson(
-      subject: hours[i].subject,
-      fromHour: hours[i].fromHour,
-      toHour: toHour,
-      end: end,
-    );
+    final run = hours.sublist(i, k + 1);
+    i = k + 1;
+
+    final units = _units(today, run, times);
+    if (units.isEmpty) continue;
+    // Split where the break is too long to count as one double lesson.
+    final groups = <List<_Unit>>[
+      [units.first]
+    ];
+    for (final unit in units.skip(1)) {
+      final gap = unit.start.difference(groups.last.last.end);
+      if (gap > doubleLessonMaxBreak) {
+        groups.add([unit]);
+      } else {
+        groups.last.add(unit);
+      }
+    }
+    for (final group in groups) {
+      if (now.isBefore(group.first.start) || !now.isBefore(group.last.end)) {
+        continue;
+      }
+      return CurrentLesson(
+        subject: run.first.subject,
+        fromHour: group.first.hour,
+        toHour: group.last.hour,
+        end: group.last.end,
+        lessonEnd: group.firstWhere((u) => now.isBefore(u.end)).end,
+      );
+    }
   }
   return null;
+}
+
+/// The single lessons of [run], each with its own times when the timetable
+/// knows them all; otherwise each calendar hour as one piece.
+List<_Unit> _units(
+    UtcDateTime today, List<CalendarHour> run, List<LessonTime> times) {
+  final perHour = <_Unit>[];
+  for (final hour in run) {
+    for (var h = hour.fromHour; h <= hour.toHour; h++) {
+      final time = LessonTimes.forHour(times, h);
+      if (time == null) {
+        perHour.clear();
+        break;
+      }
+      perHour.add((
+        hour: h,
+        start: today.add(Duration(minutes: time.startMinutes)),
+        end: today.add(Duration(minutes: time.endMinutes)),
+      ));
+    }
+    if (perHour.isEmpty) break;
+  }
+  if (perHour.isNotEmpty) return perHour;
+  return [
+    for (final hour in run)
+      if (lessonSpan(today, hour, times) case final span?)
+        (hour: hour.fromHour, start: span.start, end: span.end),
+  ];
 }
 
 /// Rebuilds [builder] every [interval] with the school time.

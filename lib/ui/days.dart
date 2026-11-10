@@ -628,88 +628,122 @@ class DayWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     var i = index;
     final links = DayReminderLinks.of(day.homework);
+    final kind = dayKind(day.date, vm.holidays);
+    final theme = Theme.of(context);
     return Column(
       children: <Widget>[
         SizedBox(
           height: 48,
           child: Row(
             children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.only(left: 15),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
+              // The heading may shrink, so a long holiday name is cut instead
+              // of overflowing; "+" stays at the far end.
+              Expanded(
+                child: Row(
                   children: [
-                    Text(
-                      day.displayName,
-                      style: Theme.of(context).textTheme.titleLarge,
+                    Flexible(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 15),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  day.displayName,
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    color: kind.color(theme),
+                                  ),
+                                ),
+                                if (kind.label != null) ...[
+                                  const SizedBox(width: 8),
+                                  Icon(kind.icon,
+                                      size: 16, color: kind.color(theme)),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      kind.label!,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(color: kind.color(theme)),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            if (showLastFetched)
+                              Text(
+                                "Zuletzt synchronisiert ${formatTimeAgo(day.lastRequested)}.",
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                    if (showLastFetched)
-                      Text(
-                        "Zuletzt synchronisiert ${formatTimeAgo(day.lastRequested)}.",
-                        style: Theme.of(context).textTheme.bodySmall,
+                    if (day.deletedHomework.isNotEmpty)
+                      AutoScrollTag(
+                        controller: controller,
+                        index: index,
+                        key: ValueKey(index),
+                        highlightColor: Colors.grey.withOpacity(0.5),
+                        child: IconButton(
+                          icon: badge.Badge(
+                            badgeContent: Icon(
+                              Icons.delete,
+                              size: 15,
+                              color: day.deletedHomework.any((h) => h.isChanged)
+                                  ? Colors.white
+                                  : null,
+                            ),
+                            badgeStyle: badge.BadgeStyle(
+                              badgeColor: day.deletedHomework
+                                      .any((h) => h.isChanged)
+                                  ? Colors.red
+                                  : Theme.of(context).scaffoldBackgroundColor,
+                              padding: EdgeInsets.zero,
+                              elevation: 0,
+                            ),
+                            badgeAnimation: badge.BadgeAnimation.slide(
+                              toAnimate:
+                                  day.deletedHomework.any((h) => h.isChanged),
+                            ),
+                            position: badge.BadgePosition.topStart(),
+                            child: const Icon(Icons.info_outline),
+                          ),
+                          onPressed: () {
+                            showDialog<void>(
+                              context: context,
+                              builder: (context) {
+                                return InfoDialog(
+                                  title: const Text("Gelöschte Einträge"),
+                                  content: SingleChildScrollView(
+                                    child: Column(
+                                      children: day.deletedHomework
+                                          .map(
+                                            (i) => ItemWidget(
+                                              item: i,
+                                              isDeletedView: true,
+                                              colorBorder: colorBorders,
+                                              subjectThemes: subjectThemes,
+                                              colorTestsInRed: colorTestsInRed,
+                                              askWhenDelete: vm.askWhenDelete,
+                                              noInternet: vm.noInternet,
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
                       ),
                   ],
                 ),
               ),
-              if (day.deletedHomework.isNotEmpty)
-                AutoScrollTag(
-                  controller: controller,
-                  index: index,
-                  key: ValueKey(index),
-                  highlightColor: Colors.grey.withOpacity(0.5),
-                  child: IconButton(
-                    icon: badge.Badge(
-                      badgeContent: Icon(
-                        Icons.delete,
-                        size: 15,
-                        color: day.deletedHomework.any((h) => h.isChanged)
-                            ? Colors.white
-                            : null,
-                      ),
-                      badgeStyle: badge.BadgeStyle(
-                        badgeColor: day.deletedHomework.any((h) => h.isChanged)
-                            ? Colors.red
-                            : Theme.of(context).scaffoldBackgroundColor,
-                        padding: EdgeInsets.zero,
-                        elevation: 0,
-                      ),
-                      badgeAnimation: badge.BadgeAnimation.slide(
-                        toAnimate: day.deletedHomework.any((h) => h.isChanged),
-                      ),
-                      position: badge.BadgePosition.topStart(),
-                      child: const Icon(Icons.info_outline),
-                    ),
-                    onPressed: () {
-                      showDialog<void>(
-                        context: context,
-                        builder: (context) {
-                          return InfoDialog(
-                            title: const Text("Gelöschte Einträge"),
-                            content: SingleChildScrollView(
-                              child: Column(
-                                children: day.deletedHomework
-                                    .map(
-                                      (i) => ItemWidget(
-                                        item: i,
-                                        isDeletedView: true,
-                                        colorBorder: colorBorders,
-                                        subjectThemes: subjectThemes,
-                                        colorTestsInRed: colorTestsInRed,
-                                        askWhenDelete: vm.askWhenDelete,
-                                        noInternet: vm.noInternet,
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              const Spacer(),
               if (vm.showAddReminder)
                 IconButton(
                   icon: const Icon(Icons.add),
@@ -1194,6 +1228,42 @@ class ItemWidget extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Whether a day is a school day, a weekend or in the holidays — shown on the
+/// day's heading, quietly: weekends only in a muted colour, holidays in a
+/// colour of their own with their name.
+class DayKind {
+  const DayKind._(this.label, this.icon, this._color);
+
+  static const school = DayKind._(null, null, null);
+  static const weekend = DayKind._(null, null, _muted);
+
+  factory DayKind.holiday(String name) =>
+      DayKind._(name, Icons.beach_access_outlined, _holiday);
+
+  final String? label;
+  final IconData? icon;
+  final Color? Function(ThemeData theme)? _color;
+
+  Color? color(ThemeData theme) => _color?.call(theme);
+
+  bool get isHoliday => label != null;
+
+  static Color? _muted(ThemeData theme) =>
+      theme.colorScheme.onSurface.withValues(alpha: 0.5);
+  static Color? _holiday(ThemeData theme) => theme.colorScheme.tertiary;
+}
+
+DayKind dayKind(UtcDateTime date, Iterable<HolidayPeriod> holidays) {
+  final day = UtcDateTime(date.year, date.month, date.day);
+  for (final holiday in holidays) {
+    if (holiday.contains(day)) return DayKind.holiday(holiday.name);
+  }
+  if (day.weekday == DateTime.saturday || day.weekday == DateTime.sunday) {
+    return DayKind.weekend;
+  }
+  return DayKind.school;
 }
 
 String formatChanged(Homework hw) {
