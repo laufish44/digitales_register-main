@@ -967,6 +967,7 @@ Future<void> prefetchAttachments(
     for (final hour in day.hours) {
       for (final content in hour.lessonContents) {
         for (final submission in content.submissions) {
+          if (!submission.isFile) continue;
           await fetch(
             submission.uniqueName,
             "${wrapper.baseAddress}api/lessonContent/lessonContentSubmissionDownloadEntry",
@@ -987,6 +988,7 @@ Future<void> prefetchAttachments(
     for (final homework in day.homework) {
       for (final submission
           in homework.gradeGroupSubmissions ?? const <GradeGroupSubmission>[]) {
+        if (!submission.isFile) continue;
         await fetch(
           submission.uniqueName,
           "${wrapper.baseAddress}api/gradeGroup/gradeGroupSubmissionDownloadEntry",

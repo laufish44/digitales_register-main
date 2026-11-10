@@ -218,6 +218,8 @@ abstract class GradeGroupSubmission
       _$gradeGroupSubmissionSerializer;
 
   UtcDateTime get timestamp;
+
+  /// Empty for a text or a link.
   String get file;
   String get originalName;
   String get typeName;
@@ -227,6 +229,19 @@ abstract class GradeGroupSubmission
   int get id;
   int get gradeGroupId;
   int get userId;
+
+  /// "file", "text" or "link"; null in states saved before text and links
+  /// were kept, which only held files.
+  String? get type;
+
+  /// The heading the teacher gave a text or a link.
+  String? get title;
+
+  /// A text, as a Quill delta in JSON like a message.
+  String? get text;
+  String? get link;
+
+  bool get isFile => type == null || type == "file";
 
   String get uniqueName => "hw_${id}_${gradeGroupId}_$originalName";
 
@@ -639,6 +654,9 @@ abstract class HomeworkExam
   int get typeId;
   String get typeName;
   bool get warning;
+
+  /// What the teacher attached (null in states saved before they were kept).
+  BuiltList<GradeGroupSubmission>? get submissions;
   static Serializer<HomeworkExam> get serializer => _$homeworkExamSerializer;
   factory HomeworkExam([Function(HomeworkExamBuilder b)? updates]) =
       _$HomeworkExam;
@@ -664,6 +682,13 @@ abstract class LessonContentSubmission
   String get id;
   String get lessonContentId;
   UtcDateTime get date;
+
+  /// For a text or a link, see [GradeGroupSubmission].
+  String? get title;
+  String? get text;
+  String? get link;
+
+  bool get isFile => type == "file";
 
   @BuiltValueField(serialize: false)
   bool get downloading;

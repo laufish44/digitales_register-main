@@ -32,6 +32,9 @@ class NotificationPage extends StatelessWidget {
   final bool noInternet;
   final UtcDateTime? lastFetched;
 
+  /// Every notification seen, also the read ones (#27).
+  final List<Notification> history;
+
   const NotificationPage({
     super.key,
     required this.notifications,
@@ -40,12 +43,28 @@ class NotificationPage extends StatelessWidget {
     required this.noInternet,
     required this.goToMessage,
     required this.lastFetched,
+    this.history = const [],
   });
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Benachrichtigungen"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: "Verlauf",
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => NotificationHistoryPage(
+                  history: history,
+                  unreadIds: {for (final n in notifications) n.id},
+                  goToMessage: goToMessage,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: LastFetchedOverlay(
         lastFetched: lastFetched,
@@ -94,6 +113,68 @@ class NotificationPage extends StatelessWidget {
                 ),
         ),
       ),
+    );
+  }
+}
+
+/// All notifications the app has seen, read or not, newest first.
+class NotificationHistoryPage extends StatelessWidget {
+  const NotificationHistoryPage({
+    super.key,
+    required this.history,
+    required this.unreadIds,
+    required this.goToMessage,
+  });
+
+  final List<Notification> history;
+  final Set<int> unreadIds;
+  final SingleArgumentVoidCallback<int> goToMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text("Verlauf")),
+      body: history.isEmpty
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  "Noch keine Benachrichtigungen. Ab jetzt bleibt hier jede "
+                  "stehen, auch wenn sie gelesen ist.",
+                  style: theme.textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          : ListView.separated(
+              itemCount: history.length,
+              separatorBuilder: (_, __) => const Divider(height: 0),
+              itemBuilder: (context, i) {
+                final n = history[i];
+                final unread = unreadIds.contains(n.id);
+                final opensMessage = n.type == "message" && n.objectId != null;
+                return ListTile(
+                  leading: Icon(
+                    unread ? Icons.notifications_active : Icons.notifications_none,
+                    color: unread ? theme.colorScheme.primary : null,
+                  ),
+                  title: Text(
+                    n.title,
+                    style: unread
+                        ? const TextStyle(fontWeight: FontWeight.bold)
+                        : null,
+                  ),
+                  subtitle: Text([
+                    if (!n.subTitle.isNullOrEmpty) n.subTitle!,
+                    DateFormat("d.M.yy H:mm").format(n.timeSent),
+                  ].join("\n")),
+                  isThreeLine: !n.subTitle.isNullOrEmpty,
+                  trailing: opensMessage ? const Icon(Icons.exit_to_app) : null,
+                  onTap: opensMessage ? () => goToMessage(n.objectId!) : null,
+                );
+              },
+            ),
     );
   }
 }

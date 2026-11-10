@@ -48,6 +48,11 @@ class CalendarCardContainer extends StatelessWidget {
           onOpenFile: actions.calendarActions.onOpenFile.call,
           onSaveFileAs: actions.calendarActions.onSaveFileAs.call,
           onCopyFile: actions.calendarActions.onCopyFile.call,
+          // Files attached to a test or a homework go through the register
+          // page's download, which only needs the attachment itself.
+          onOpenAttachment: actions.dashboardActions.openAttachment.call,
+          onSaveAttachmentAs: actions.dashboardActions.saveAttachmentAs.call,
+          onCopyAttachment: actions.dashboardActions.copyAttachment.call,
           noInternet: state.noInternet,
           absenceMark: state.absenceMark,
         );

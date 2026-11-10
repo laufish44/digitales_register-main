@@ -28,6 +28,7 @@ import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/stats.dart';
 import 'package:dr/utc_date_time.dart';
+import 'package:dr/util.dart' show now;
 
 enum SearchCategory {
   message,
@@ -274,7 +275,33 @@ class Search {
       if (aDate != null && bDate != null) return bDate.compareTo(aDate);
       return a.title.compareTo(b.title);
     });
+    entriesByDate(results);
     return results.length > limit ? results.sublist(0, limit) : results;
+  }
+
+  /// Puts the tests and homework in date order within the places they took
+  /// (#28): the next one first, then the later ones, and those already past
+  /// at the end, the most recent first.
+  static void entriesByDate(List<SearchResult> results, {UtcDateTime? today}) {
+    final slots = <int>[
+      for (var i = 0; i < results.length; i++)
+        if (results[i].category == SearchCategory.entry) i,
+    ];
+    if (slots.length < 2) return;
+    final day = today ?? UtcDateTime(now.year, now.month, now.day);
+    final entries = [for (final i in slots) results[i]]..sort((a, b) {
+        final aDate = a.date, bDate = b.date;
+        if (aDate == null || bDate == null) {
+          return aDate == null ? (bDate == null ? 0 : 1) : -1;
+        }
+        final aPast = aDate.isBefore(day), bPast = bDate.isBefore(day);
+        if (aPast != bPast) return aPast ? 1 : -1;
+        final byDate = aPast ? bDate.compareTo(aDate) : aDate.compareTo(bDate);
+        return byDate != 0 ? byDate : a.title.compareTo(b.title);
+      });
+    for (var i = 0; i < slots.length; i++) {
+      results[slots[i]] = entries[i];
+    }
   }
 
   static int? _best(List<int?> scores) {

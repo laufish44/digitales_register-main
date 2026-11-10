@@ -218,7 +218,7 @@ Homework _parseHomework(Map data) {
           ? null
           : ListBuilder(getList(data["gradeGroupSubmissions"])!
               .map((dynamic s) =>
-                  tryParse(getMap(s)!, _parseGradeGroupSubmission))
+                  tryParse(getMap(s)!, parseGradeGroupSubmission))
               .where((s) => s != null));
 
     final typeString = getString(data["type"]);
@@ -247,12 +247,20 @@ Homework _parseHomework(Map data) {
   });
 }
 
-GradeGroupSubmission? _parseGradeGroupSubmission(Map data) {
+/// One thing a teacher attached to a test or a homework: a file, a text or a
+/// link. Also used for the calendar.
+GradeGroupSubmission? parseGradeGroupSubmission(Map data) {
   try {
+    final title = getString(data["title"]);
     return GradeGroupSubmission(
       (b) => b
-        ..file = getString(data["file"])
-        ..originalName = getString(data["originalName"])
+        // A text or a link has neither.
+        ..file = getString(data["file"]) ?? ""
+        ..originalName = getString(data["originalName"]) ?? title ?? ""
+        ..type = getString(data["type"])
+        ..title = title
+        ..text = getString(data["text"])
+        ..link = getString(data["link"])
         ..timestamp = UtcDateTime.parse(getString(data["timestamp"])!)
         ..typeName = getString(data["typeName"])
         ..id = getInt(data["id"])

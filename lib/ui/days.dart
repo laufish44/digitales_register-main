@@ -36,6 +36,7 @@ import 'package:dr/ui/last_fetched_overlay.dart';
 import 'package:dr/ui/link_text.dart';
 import 'package:dr/ui/no_internet.dart';
 import 'package:dr/ui/search_page.dart';
+import 'package:dr/ui/teacher_attachment.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart';
 import 'package:flutter/material.dart';
@@ -1134,18 +1135,32 @@ class ItemWidget extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
-                    child: Text("Anhang",
+                    child: Text(
+                        item.gradeGroupSubmissions!.length == 1
+                            ? "Anhang"
+                            : "Anhänge",
                         style: Theme.of(context).textTheme.titleMedium),
                   ),
                 ),
                 for (final attachment in item.gradeGroupSubmissions!)
-                  AttachmentWidget(
-                    ggs: attachment,
-                    noInternet: noInternet,
-                    openCallback: onOpenAttachment!,
-                    saveAsCallback: onSaveAttachmentAs,
-                    copyCallback: onCopyAttachment,
-                  )
+                  if (attachment.isFile)
+                    AttachmentWidget(
+                      ggs: attachment,
+                      noInternet: noInternet,
+                      openCallback: onOpenAttachment!,
+                      saveAsCallback: onSaveAttachmentAs,
+                      copyCallback: onCopyAttachment,
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                      child: TeacherAttachment(
+                        type: attachment.type,
+                        title: attachment.title,
+                        text: attachment.text,
+                        link: attachment.link,
+                      ),
+                    )
               ]
             ],
           ),

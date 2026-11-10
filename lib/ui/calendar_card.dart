@@ -15,12 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with digitales_register.  If not, see <http://www.gnu.org/licenses/>.
 
+import 'package:built_collection/built_collection.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/lesson_times.dart';
 import 'package:dr/stats.dart';
 import 'package:dr/ui/animated_linear_progress_indicator.dart';
 import 'package:dr/ui/attachment_actions.dart';
+import 'package:dr/ui/teacher_attachment.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -78,6 +80,11 @@ class CalendarCard extends StatelessWidget {
   final List<LessonTime> lessonTimes;
   final SubmissionCallback? onSaveFileAs;
   final SubmissionCallback? onCopyFile;
+
+  /// For files attached to a test or a homework.
+  final void Function(GradeGroupSubmission submission)? onOpenAttachment;
+  final void Function(GradeGroupSubmission submission)? onSaveAttachmentAs;
+  final void Function(GradeGroupSubmission submission)? onCopyAttachment;
   final bool noInternet;
 
   /// Whether the student is (or will be) away during this lesson.
@@ -93,6 +100,9 @@ class CalendarCard extends StatelessWidget {
     this.lessonTimes = const [],
     this.onSaveFileAs,
     this.onCopyFile,
+    this.onOpenAttachment,
+    this.onSaveAttachmentAs,
+    this.onCopyAttachment,
     this.absenceMark = AbsenceMark.none,
   });
 
@@ -211,15 +221,25 @@ class CalendarCard extends StatelessWidget {
                 icon: Icons.school,
               ),
               for (final submission in lessonContent.submissions)
-                _SubmissionWidget(
-                  submission: submission,
-                  noInternet: noInternet,
-                  onOpenFile: onOpenFile,
-                  onSaveFileAs: onSaveFileAs,
-                  onCopyFile: onCopyFile,
-                )
+                if (submission.isFile)
+                  _SubmissionWidget(
+                    submission: submission,
+                    noInternet: noInternet,
+                    onOpenFile: onOpenFile,
+                    onSaveFileAs: onSaveFileAs,
+                    onCopyFile: onCopyFile,
+                  )
+                else
+                  _Indented(
+                    TeacherAttachment(
+                      type: submission.type,
+                      title: submission.title,
+                      text: submission.text,
+                      link: submission.link,
+                    ),
+                  ),
             ],
-            for (final HomeworkExam homeworkExam in hour.homeworkExams)
+            for (final HomeworkExam homeworkExam in hour.homeworkExams) ...[
               if (homeworkExam.warning)
                 _ContentItem(
                   title: homeworkExam.typeName,
@@ -233,6 +253,39 @@ class CalendarCard extends StatelessWidget {
                   content: homeworkExam.name,
                   icon: Icons.assignment,
                 ),
+              for (final submission
+                  in homeworkExam.submissions ?? BuiltList<GradeGroupSubmission>())
+                if (!submission.isFile)
+                  _Indented(
+                    TeacherAttachment(
+                      type: submission.type,
+                      title: submission.title,
+                      text: submission.text,
+                      link: submission.link,
+                    ),
+                  )
+                else if (onOpenAttachment != null)
+                  _Indented(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AttachmentActions(
+                          name: submission.originalName,
+                          enabled: submission.fileAvailable || !noInternet,
+                          onOpen: () => onOpenAttachment!(submission),
+                          onSaveAs: onSaveAttachmentAs == null
+                              ? null
+                              : () => onSaveAttachmentAs!(submission),
+                          onCopy: onCopyAttachment == null
+                              ? null
+                              : () => onCopyAttachment!(submission),
+                        ),
+                        AnimatedLinearProgressIndicator(
+                            show: submission.downloading),
+                      ],
+                    ),
+                  ),
+            ],
           ]
               .expand(
                 (element) => [
@@ -321,6 +374,21 @@ class _ContentItem extends StatelessWidget {
           ),
         )
       ],
+    );
+  }
+}
+
+/// Places an attachment under the entry it belongs to.
+class _Indented extends StatelessWidget {
+  const _Indented(this.child);
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 32),
+      child: child,
     );
   }
 }

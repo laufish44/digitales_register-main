@@ -197,6 +197,9 @@ abstract class NotificationState
   BuiltList<Notification>? get notifications;
   UtcDateTime? get lastFetched;
 
+  /// Every notification seen, also after it was read (#27), newest first.
+  BuiltList<Notification>? get history;
+
   bool get loading => notifications == null;
   bool get hasNotifications => !loading && notifications!.isNotEmpty;
   static Serializer<NotificationState> get serializer =>

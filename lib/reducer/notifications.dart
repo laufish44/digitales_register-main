@@ -35,11 +35,34 @@ final notificationsReducerBuilder = NestedReducerBuilder<AppState,
   ..add(NotificationsActionsNames.deleteAll, _deleteAll)
   ..add(MessagesActionsNames.markAsRead, _markMessageAsRead);
 
+/// How many notifications the history keeps.
+const notificationHistoryLength = 300;
+
 void _loaded(NotificationState state, Action<List> action,
     NotificationStateBuilder builder) {
+  final notifications = tryParse(action.payload, _parseNotifications);
   builder
-    ..notifications = tryParse(action.payload, _parseNotifications)
-    ..lastFetched = UtcDateTime.now();
+    ..notifications = notifications
+    ..lastFetched = UtcDateTime.now()
+    ..history = ListBuilder(mergeNotificationHistory(
+      state.history ?? BuiltList<Notification>(),
+      notifications.build(),
+    ));
+}
+
+/// [history] with the [incoming] notifications it does not have yet, newest
+/// first and no longer than [notificationHistoryLength].
+List<Notification> mergeNotificationHistory(
+    Iterable<Notification> history, Iterable<Notification> incoming) {
+  final byId = <int, Notification>{
+    for (final n in history) n.id: n,
+    for (final n in incoming) n.id: n,
+  };
+  final merged = byId.values.toList()
+    ..sort((a, b) => b.timeSent.compareTo(a.timeSent));
+  return merged.length > notificationHistoryLength
+      ? merged.sublist(0, notificationHistoryLength)
+      : merged;
 }
 
 ListBuilder<Notification> _parseNotifications(List data) {

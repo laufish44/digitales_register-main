@@ -22,6 +22,7 @@ import 'package:collection/collection.dart';
 import 'package:dr/actions/calendar_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
+import 'package:dr/reducer/dashboard.dart' show parseGradeGroupSubmission;
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -199,7 +200,12 @@ HomeworkExam _parseHomeworkExam(Map homeworkExam) {
     ..name = getString(homeworkExam["name"])
     ..online = homeworkExam["online"] != 0
     ..typeId = getInt(homeworkExam["typeId"])
-    ..typeName = getString(homeworkExam["typeName"]));
+    ..typeName = getString(homeworkExam["typeName"])
+    ..submissions = ListBuilder(
+      (getList(homeworkExam["gradeGroupSubmissions"]) ?? const <dynamic>[])
+          .map((dynamic s) => tryParse(getMap(s)!, parseGradeGroupSubmission))
+          .whereType<GradeGroupSubmission>(),
+    ));
 }
 
 LessonContent _parseLessonContent(
@@ -231,10 +237,11 @@ LessonContentSubmission? _parseLessonContentSubmission(
   CalendarHour? oldHour,
 ) {
   final type = getString(submission["type"]);
-  if (type != "file") {
+  if (type != "file" && type != "text" && type != "link") {
     return null;
   }
-  final originalName = getString(submission["originalName"]);
+  final title = getString(submission["title"]);
+  final originalName = getString(submission["originalName"]) ?? title ?? "";
   final id = getString(submission["id"]);
   final fileAvailable = oldHour?.lessonContents.any((content) =>
           content.submissions.any((submission) =>
@@ -247,6 +254,9 @@ LessonContentSubmission? _parseLessonContentSubmission(
     (b) => b
       ..type = type
       ..originalName = originalName
+      ..title = title
+      ..text = getString(submission["text"])
+      ..link = getString(submission["link"])
       ..id = id
       ..lessonContentId = getString(submission["lessonContentId"])
       ..date = date

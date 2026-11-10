@@ -18,6 +18,7 @@
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
+import 'package:dr/reducer/notifications.dart' show mergeNotificationHistory;
 import 'package:dr/ui/notifications_page.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:flutter/material.dart' hide Notification;
@@ -28,7 +29,7 @@ class NotificationPageContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StoreConnection<AppState, AppActions,
-        Tuple3<List<Notification>, UtcDateTime?, bool>>(
+        Tuple4<List<Notification>, UtcDateTime?, bool, List<Notification>>>(
       builder: (context, vm, actions) {
         return NotificationPage(
           notifications: vm.item1,
@@ -37,13 +38,20 @@ class NotificationPageContainer extends StatelessWidget {
           deleteAllNotifications: actions.notificationsActions.deleteAll.call,
           goToMessage: actions.routingActions.showMessage.call,
           lastFetched: vm.item2,
+          history: vm.item4,
         );
       },
       connect: (state) {
-        return Tuple3(
-          state.notificationState.notifications!.toList(),
+        final notifications = state.notificationState.notifications!;
+        return Tuple4(
+          notifications.toList(),
           state.notificationState.lastFetched,
           state.noInternet,
+          // Also what came in before the history existed.
+          mergeNotificationHistory(
+            state.notificationState.history ?? const <Notification>[],
+            notifications,
+          ),
         );
       },
     );
