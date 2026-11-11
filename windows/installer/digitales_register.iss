@@ -7,7 +7,7 @@
 ; The result lands in "installation files\Windows\".
 
 #define AppName "Digitales Register"
-#define AppVersion "9.0.0"
+#define AppVersion "9.1.0"
 #define AppPublisher "Laurin Feichter"
 #define AppURL "https://github.com/laufish44/digitales_register-main"
 #define AppExeName "digitales_register.exe"
@@ -15,6 +15,16 @@
 #define RepoDir ".."
 #define BuildDir RepoDir + "\..\build\windows\x64\runner\Release"
 #define OutputDir RepoDir + "\..\installation files\Windows"
+; The widget package (tool/build_widget_package.ps1); optional.
+#define WidgetDir RepoDir + "\..\installation files\widgets"
+#define ThumbFile WidgetDir + "\thumbprint.txt"
+#if FileExists(ThumbFile)
+  #define ThumbHandle FileOpen(ThumbFile)
+  #define WidgetThumb Trim(FileRead(ThumbHandle))
+  #expr FileClose(ThumbHandle)
+#else
+  #define WidgetThumb ""
+#endif
 
 [Setup]
 ; Keep this GUID stable - Windows recognises updates by it.
@@ -60,6 +70,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; next to it, so everything is copied as one unit. Link-time leftovers are
 ; excluded - they are not part of the application.
 Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.lib,*.exp,*.pdb"
+; The Windows widgets: the identity package and its certificate.
+Source: "{#WidgetDir}\DigitalesRegisterWidgets.msix"; DestDir: "{app}\widgets"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#WidgetDir}\DigitalesRegisterWidgets.cer"; DestDir: "{app}\widgets"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
@@ -82,3 +95,65 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: 
 ; Stop a running background service before removing the files, otherwise the
 ; still-locked executable is left behind.
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM {#AppExeName}"; Flags: runhidden skipifdoesntexist; RunOnceId: "StopApp"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM dr_widgets.exe"; Flags: runhidden skipifdoesntexist; RunOnceId: "StopWidgets"
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-AppxPackage -Name LaurinFeichter.DigitalesRegister.Widgets | Remove-AppxPackage"""; Flags: runhidden skipifdoesntexist; RunOnceId: "RemoveWidgets"
+
+[Code]
+// The Windows widgets need the identity package registered for this user,
+// and Windows has to trust its (self-made) certificate first. Trusting it
+// takes administrator rights once per computer; it is asked for when the
+// setup runs in the open. A silent update (from inside the app) never asks:
+// it only re-registers when the certificate is trusted already, and the app
+// offers "Windows-Widgets einrichten" in its settings otherwise.
+
+const
+  WidgetThumbprint = '{#WidgetThumb}';
+
+function WidgetCertificateTrusted: Boolean;
+begin
+  Result := (WidgetThumbprint <> '') and RegKeyExists(HKLM,
+    'SOFTWARE\Microsoft\SystemCertificates\TrustedPeople\Certificates\' + WidgetThumbprint);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Code: Integer;
+begin
+  // The widget program may be running; it would keep its file locked.
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM dr_widgets.exe', '',
+    SW_HIDE, ewWaitUntilTerminated, Code);
+  Result := '';
+end;
+
+procedure SetUpWidgets;
+var
+  Code: Integer;
+  Msix, Cer: String;
+begin
+  Msix := ExpandConstant('{app}\widgets\DigitalesRegisterWidgets.msix');
+  Cer := ExpandConstant('{app}\widgets\DigitalesRegisterWidgets.cer');
+  if not FileExists(Msix) then Exit;
+  // Widgets exist from Windows 11 on.
+  if GetWindowsVersion < $0A0055F0 then Exit;
+  if not WidgetCertificateTrusted then
+  begin
+    if WizardSilent then Exit;
+    if MsgBox('Für die Windows-Widgets (Widgets-Board und Sperrbildschirm) muss Windows dem Zertifikat ' +
+      'des Digitalen Registers einmal vertrauen. Dafür fragt Windows gleich nach Administratorrechten.' + #13#10#13#10 +
+      'Ohne das läuft die App ganz normal, nur ohne Widgets. Einrichten?',
+      mbConfirmation, MB_YESNO) <> IDYES then Exit;
+    if not ShellExec('runas', ExpandConstant('{sys}\certutil.exe'),
+      '-addstore TrustedPeople "' + Cer + '"', '', SW_HIDE,
+      ewWaitUntilTerminated, Code) then Exit;
+    if not WidgetCertificateTrusted then Exit;
+  end;
+  Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "' +
+    'Add-AppxPackage -Path ''' + Msix + ''' -ExternalLocation ''' +
+    ExpandConstant('{app}') + ''' -ForceUpdateFromAnyVersion -ForceApplicationShutdown"',
+    '', SW_HIDE, ewWaitUntilTerminated, Code);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then SetUpWidgets;
+end;

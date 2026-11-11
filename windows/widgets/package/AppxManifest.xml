@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The identity package for the Windows widgets.
+
+  Widgets may only come from an app with a package identity. The app itself
+  stays an ordinary program installed by Inno Setup; this "sparse" package
+  only lends it that identity: it holds no program files, and points at the
+  installation folder instead (Add-AppxPackage -ExternalLocation).
+
+  Built and signed by tool/build_widget_package.ps1. Version, Publisher and
+  the class id must match windows/widgets/dr_widgets.exe.manifest and
+  windows/widgets/provider.cpp.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 uap10 com rescap">
+
+  <Identity
+    Name="LaurinFeichter.DigitalesRegister.Widgets"
+    Publisher="CN=Laurin Feichter (Digitales Register)"
+    Version="0.0.0.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Digitales Register</DisplayName>
+    <PublisherDisplayName>Laurin Feichter</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+
+  <Resources>
+    <Resource Language="de-de" />
+  </Resources>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+    <PackageDependency
+      Name="Microsoft.WindowsAppRuntime.1.8"
+      MinVersion="8000.0.0.0"
+      Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />
+  </Dependencies>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+
+  <Applications>
+    <Application
+      Id="Widgets"
+      Executable="dr_widgets.exe"
+      uap10:TrustLevel="mediumIL"
+      uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements
+        AppListEntry="none"
+        DisplayName="Digitales Register"
+        Description="Widgets des Digitalen Registers"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:ExeServer Executable="dr_widgets.exe" DisplayName="Digitales Register Widgets">
+              <com:Class Id="FB1E968A-34F7-41D0-A785-BE7C11C633A9" DisplayName="Digitales Register Widgets" />
+            </com:ExeServer>
+          </com:ComServer>
+        </com:Extension>
+        <uap3:Extension Category="windows.appExtension">
+          <uap3:AppExtension
+            Name="com.microsoft.windows.widgets"
+            DisplayName="Digitales Register"
+            Id="DigitalesRegister"
+            PublicFolder="Public">
+            <uap3:Properties>
+              <WidgetProvider>
+                <ProviderIcons>
+                  <Icon Path="Assets\WidgetIcon.png" />
+                </ProviderIcons>
+                <Activation>
+                  <CreateInstance ClassId="FB1E968A-34F7-41D0-A785-BE7C11C633A9" />
+                </Activation>
+                <Definitions>
+                  <Definition Id="lesson" DisplayName="Aktuelle Stunde"
+                    Description="Fach und Countdown der laufenden Stunde, in Pausen die nächste"
+                    AllowMultiple="true" IsCustomizable="true">
+                    <Capabilities>
+                      <Capability><Size Name="small" /></Capability>
+                      <Capability><Size Name="medium" /></Capability>
+                    </Capabilities>
+                    <ThemeResources>
+                      <Icons><Icon Path="Assets\WidgetIcon.png" /></Icons>
+                      <Screenshots><Screenshot Path="Assets\Preview_lesson.png" DisplayAltText="Aktuelle Stunde" /></Screenshots>
+                      <DarkMode />
+                      <LightMode />
+                    </ThemeResources>
+                  </Definition>
+                  <Definition Id="exams" DisplayName="Prüfungen"
+                    Description="Die nächsten Prüfungen und Hausaufgaben"
+                    AllowMultiple="true" IsCustomizable="true">
+                    <Capabilities>
+                      <Capability><Size Name="small" /></Capability>
+                      <Capability><Size Name="medium" /></Capability>
+                      <Capability><Size Name="large" /></Capability>
+                    </Capabilities>
+                    <ThemeResources>
+                      <Icons><Icon Path="Assets\WidgetIcon.png" /></Icons>
+                      <Screenshots><Screenshot Path="Assets\Preview_exams.png" DisplayAltText="Prüfungen" /></Screenshots>
+                      <DarkMode />
+                      <LightMode />
+                    </ThemeResources>
+                  </Definition>
+                  <Definition Id="day" DisplayName="Tagesübersicht"
+                    Description="Stunden und Einträge von heute, morgen oder dem nächsten Schultag"
+                    AllowMultiple="true" IsCustomizable="true">
+                    <Capabilities>
+                      <Capability><Size Name="small" /></Capability>
+                      <Capability><Size Name="medium" /></Capability>
+                      <Capability><Size Name="large" /></Capability>
+                    </Capabilities>
+                    <ThemeResources>
+                      <Icons><Icon Path="Assets\WidgetIcon.png" /></Icons>
+                      <Screenshots><Screenshot Path="Assets\Preview_day.png" DisplayAltText="Tagesübersicht" /></Screenshots>
+                      <DarkMode />
+                      <LightMode />
+                    </ThemeResources>
+                  </Definition>
+                  <Definition Id="countdown" DisplayName="Ferien-Countdown"
+                    Description="Tage bis zu den nächsten Ferien oder bis zum Schulende"
+                    AllowMultiple="true" IsCustomizable="true">
+                    <Capabilities>
+                      <Capability><Size Name="small" /></Capability>
+                      <Capability><Size Name="medium" /></Capability>
+                    </Capabilities>
+                    <ThemeResources>
+                      <Icons><Icon Path="Assets\WidgetIcon.png" /></Icons>
+                      <Screenshots><Screenshot Path="Assets\Preview_countdown.png" DisplayAltText="Ferien-Countdown" /></Screenshots>
+                      <DarkMode />
+                      <LightMode />
+                    </ThemeResources>
+                  </Definition>
+                  <Definition Id="grades" DisplayName="Noten"
+                    Description="Gesamtschnitt, schwächste oder beste Fächer, letzte Noten"
+                    AllowMultiple="true" IsCustomizable="true">
+                    <Capabilities>
+                      <Capability><Size Name="small" /></Capability>
+                      <Capability><Size Name="medium" /></Capability>
+                      <Capability><Size Name="large" /></Capability>
+                    </Capabilities>
+                    <ThemeResources>
+                      <Icons><Icon Path="Assets\WidgetIcon.png" /></Icons>
+                      <Screenshots><Screenshot Path="Assets\Preview_grades.png" DisplayAltText="Noten" /></Screenshots>
+                      <DarkMode />
+                      <LightMode />
+                    </ThemeResources>
+                  </Definition>
+                  <Definition Id="absences" DisplayName="Absenzen"
+                    Description="Anteil der Fehlstunden und wie viel Luft noch bleibt"
+                    AllowMultiple="false" IsCustomizable="false">
+                    <Capabilities>
+                      <Capability><Size Name="small" /></Capability>
+                      <Capability><Size Name="medium" /></Capability>
+                    </Capabilities>
+                    <ThemeResources>
+                      <Icons><Icon Path="Assets\WidgetIcon.png" /></Icons>
+                      <Screenshots><Screenshot Path="Assets\Preview_absences.png" DisplayAltText="Absenzen" /></Screenshots>
+                      <DarkMode />
+                      <LightMode />
+                    </ThemeResources>
+                  </Definition>
+                </Definitions>
+              </WidgetProvider>
+            </uap3:Properties>
+          </uap3:AppExtension>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>

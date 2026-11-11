@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="DigitalesRegister.Widgets"/>
+  <!-- Ties the program to the identity package (windows/widgets/package):
+       only with it may it serve widgets. Must match its Identity. -->
+  <msix xmlns="urn:schemas-microsoft-com:msix.v1"
+        publisher="CN=Laurin Feichter (Digitales Register)"
+        packageName="LaurinFeichter.DigitalesRegister.Widgets"
+        applicationId="Widgets"/>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+</assembly>

@@ -37,6 +37,7 @@ import 'package:dr/update/update_service.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart';
 import 'package:dr/widgets/widget_catalog.dart';
+import 'package:dr/windows_widgets.dart';
 import 'package:dynamic_theme/dynamic_theme.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -556,6 +557,72 @@ class _ThemeSwatch extends StatelessWidget {
 
 /// The intervals offered in the settings, in seconds.
 const _intervalChoices = [15, 30, 60, 120, 300, 600, 1800, 3600];
+
+/// The Windows widgets (Widgets board and lock screen): whether they are set
+/// up, and a button that does it.
+class _WindowsWidgetsTile extends StatefulWidget {
+  const _WindowsWidgetsTile();
+
+  @override
+  State<_WindowsWidgetsTile> createState() => _WindowsWidgetsTileState();
+}
+
+class _WindowsWidgetsTileState extends State<_WindowsWidgetsTile> {
+  bool? _installed;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    windowsWidgetsInstalled().then((v) {
+      if (mounted) setState(() => _installed = v);
+    });
+  }
+
+  Future<void> _setUp() async {
+    setState(() => _busy = true);
+    final error = await setUpWindowsWidgets();
+    final installed = await windowsWidgetsInstalled();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _installed = installed;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(error ??
+          "Fertig! Füge die Widgets im Widgets-Board (Win+W) oder unter "
+              "Einstellungen → Personalisierung → Sperrbildschirm hinzu."),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final installed = _installed == true;
+    return ListTile(
+      leading: const Icon(Icons.widgets_outlined),
+      title: const Text("Windows-Widgets"),
+      subtitle: Text(installed
+          ? "Eingerichtet. Hinzufügen im Widgets-Board (Win+W) oder unter "
+              "Einstellungen → Personalisierung → Sperrbildschirm. Jedes "
+              "Widget lässt sich über „Widget anpassen“ einstellen."
+          : "Aktuelle Stunde, Prüfungen, Tagesübersicht, Ferien-Countdown, "
+              "Noten und Absenzen im Widgets-Board und auf dem "
+              "Sperrbildschirm. Beim Einrichten fragt Windows einmal nach "
+              "Administratorrechten."),
+      isThreeLine: true,
+      trailing: _busy
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : TextButton(
+              onPressed: _setUp,
+              child: Text(installed ? "Erneuern" : "Einrichten"),
+            ),
+    );
+  }
+}
 
 /// 1080 → "18:00 Uhr".
 String _formatMinutes(int minutes) =>
@@ -1415,6 +1482,7 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
             configs: widget.vm.dashboardWidgets,
             onChanged: widget.onSetDashboardWidgets,
           ),
+          if (windowsWidgetsAvailable) const _WindowsWidgetsTile(),
           const Divider(),
           ListTile(
             title: Text(

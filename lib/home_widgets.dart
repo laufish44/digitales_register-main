@@ -45,6 +45,7 @@ import 'package:dr/util.dart' as util;
 import 'package:dr/util.dart' show gradeAverageFormat;
 import 'package:dr/widgets/dashboard_widgets.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// Bumped when the shape of the snapshot changes in a way the Android side
 /// has to know about.
@@ -297,6 +298,21 @@ class HomeWidgetPublisher {
       return;
     }
     if (encoded == _lastSent) return;
+    if (Platform.isWindows) {
+      // Read by the widget provider (windows/widgets/provider.cpp), which
+      // Windows starts on its own; the app need not be running.
+      try {
+        final dir = await getApplicationSupportDirectory();
+        final file = File("${dir.path}${Platform.pathSeparator}widgets.json");
+        final temp = File("${file.path}.tmp");
+        await temp.writeAsString(encoded, flush: true);
+        await temp.rename(file.path);
+        _lastSent = encoded;
+      } catch (e) {
+        log("could not write the widget snapshot", error: e);
+      }
+      return;
+    }
     try {
       await _channel.invokeMethod<void>("update", encoded);
       _lastSent = encoded;
@@ -313,7 +329,7 @@ NextActionHandler homeWidgetsMiddleware(
         MiddlewareApi<AppState, AppStateBuilder, AppActions> api) =>
     (ActionHandler next) => (Action action) async {
           await next(action);
-          if (Platform.isAndroid) {
+          if (Platform.isAndroid || Platform.isWindows) {
             HomeWidgetPublisher.instance.schedule(api.state);
           }
         };
