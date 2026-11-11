@@ -26,9 +26,11 @@ class NotificationIcon extends StatelessWidget {
       {super.key, required this.notifications, required this.onTap});
   @override
   Widget build(BuildContext context) {
+    // Always there, so the history (#27) can be reached without anything new.
     return notifications != 0
         ? IconButton(
             visualDensity: VisualDensity.standard,
+            tooltip: "Benachrichtigungen",
             icon: badge.Badge(
               badgeContent: Text(
                 notifications.toString(),
@@ -39,6 +41,11 @@ class NotificationIcon extends StatelessWidget {
             ),
             onPressed: onTap,
           )
-        : const SizedBox();
+        : IconButton(
+            visualDensity: VisualDensity.standard,
+            tooltip: "Benachrichtigungen und Verlauf",
+            icon: const Icon(Icons.notifications_none),
+            onPressed: onTap,
+          );
   }
 }

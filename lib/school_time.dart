@@ -177,6 +177,64 @@ CurrentLesson? currentLesson(
   return null;
 }
 
+/// The break going on at [now]: after the first lesson of the day and before
+/// the next one. Null outside school hours and during lessons.
+({String subject, UtcDateTime start})? currentBreak(
+  CalendarState calendar,
+  List<LessonTime> times,
+  UtcDateTime now,
+) {
+  final lessons = _lessonsToday(calendar, times, now);
+  if (lessons.isEmpty) return null;
+  if (!lessons.any((l) => !now.isBefore(l.unit.end))) return null;
+  if (lessons
+      .any((l) => !now.isBefore(l.unit.start) && now.isBefore(l.unit.end))) {
+    return null;
+  }
+  for (final lesson in lessons) {
+    if (lesson.unit.start.isAfter(now)) {
+      return (subject: lesson.subject, start: lesson.unit.start);
+    }
+  }
+  return null;
+}
+
+/// When the last lesson of today ends, while school is on (from the start of
+/// the first lesson until then); otherwise null.
+UtcDateTime? schoolEnd(
+  CalendarState calendar,
+  List<LessonTime> times,
+  UtcDateTime now,
+) {
+  final lessons = _lessonsToday(calendar, times, now);
+  if (lessons.isEmpty) return null;
+  final end =
+      lessons.map((l) => l.unit.end).reduce((a, b) => a.isAfter(b) ? a : b);
+  if (now.isBefore(lessons.first.unit.start) || !now.isBefore(end)) {
+    return null;
+  }
+  return end;
+}
+
+/// Every single lesson of today, in order.
+List<({String subject, _Unit unit})> _lessonsToday(
+  CalendarState calendar,
+  List<LessonTime> times,
+  UtcDateTime now,
+) {
+  final today = UtcDateTime(now.year, now.month, now.day);
+  CalendarDay? day;
+  for (final d in calendar.days.values) {
+    if (UtcDateTime(d.date.year, d.date.month, d.date.day) == today) day = d;
+  }
+  if (day == null) return const [];
+  return [
+    for (final hour in day.hours)
+      for (final unit in _units(today, [hour], times))
+        (subject: hour.subject, unit: unit),
+  ]..sort((a, b) => a.unit.start.compareTo(b.unit.start));
+}
+
 /// The single lessons of [run], each with its own times when the timetable
 /// knows them all; otherwise each calendar hour as one piece.
 List<_Unit> _units(

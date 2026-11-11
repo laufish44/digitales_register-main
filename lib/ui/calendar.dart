@@ -20,6 +20,7 @@ import 'package:dr/container/calendar_container.dart';
 import 'package:dr/container/calendar_detail_container.dart';
 import 'package:dr/container/calendar_week_container.dart';
 import 'package:dr/main.dart';
+import 'package:dr/stats.dart' show ExamDensity;
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart';
 import 'package:flutter/gestures.dart';
@@ -301,8 +302,18 @@ class _CalendarState extends State<Calendar> with TickerProviderStateMixin {
                                     },
                                     child: widget.vm.first != null &&
                                             widget.vm.last != null
-                                        ? Text(
-                                            "${_dateFormat.format(widget.vm.first!)} - ${_dateFormat.format(widget.vm.last!)}",
+                                        ? Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                "${_dateFormat.format(widget.vm.first!)} - ${_dateFormat.format(widget.vm.last!)}",
+                                              ),
+                                              if (widget.vm.examsThisWeek >=
+                                                  ExamDensity.threshold)
+                                                _ExamDensityBadge(
+                                                    count: widget
+                                                        .vm.examsThisWeek),
+                                            ],
                                           )
                                         : widget.vm.noInternet
                                             ? const Text("Wähle ein Datum")
@@ -465,6 +476,41 @@ class EditNickBar extends StatelessWidget {
       ),
       crossFadeState:
           show ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+    );
+  }
+}
+
+/// A small red mark next to a week with many tests (17).
+class _ExamDensityBadge extends StatelessWidget {
+  const _ExamDensityBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.error;
+    return Tooltip(
+      message: "$count Prüfungen in dieser Woche",
+      child: Container(
+        margin: const EdgeInsets.only(left: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 14, color: color),
+            const SizedBox(width: 2),
+            Text("$count",
+                style: Theme.of(context)
+                    .textTheme
+                    .labelMedium
+                    ?.copyWith(color: color, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
     );
   }
 }

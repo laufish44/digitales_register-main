@@ -17,18 +17,70 @@
 
 part of 'middleware.dart';
 
-final _notificationsMiddleware = MiddlewareBuilder<AppState, AppStateBuilder,
-    AppActions>()
-  ..add(NotificationsActionsNames.load, _loadNotifications)
-  ..add(NotificationsActionsNames.loaded, _postNewNotifications)
-  ..add(NotificationsActionsNames.delete, _deleteNotification)
-  ..add(NotificationsActionsNames.deleteAll, _deleteAllNotifications)
-  ..add(
-      SettingsActionsNames.setNotificationsEnabled, _applyNotificationSettings)
-  ..add(
-      SettingsActionsNames.setNotificationInterval, _applyNotificationSettings)
-  ..add(SettingsActionsNames.setBackgroundServiceEnabled,
-      _applyBackgroundServiceSetting);
+final _notificationsMiddleware =
+    MiddlewareBuilder<AppState, AppStateBuilder, AppActions>()
+      ..add(NotificationsActionsNames.load, _loadNotifications)
+      ..add(NotificationsActionsNames.loaded, _postNewNotifications)
+      ..add(NotificationsActionsNames.delete, _deleteNotification)
+      ..add(NotificationsActionsNames.deleteAll, _deleteAllNotifications)
+      ..add(SettingsActionsNames.setNotificationsEnabled,
+          _applyNotificationSettings)
+      ..add(SettingsActionsNames.setNotificationInterval,
+          _applyNotificationSettings)
+      ..add(SettingsActionsNames.setBackgroundServiceEnabled,
+          _applyBackgroundServiceSetting)
+      ..add(SettingsActionsNames.setEveningSummaryEnabled, _mirrorSettings)
+      ..add(SettingsActionsNames.setEveningSummaryMinutes, _mirrorSettings)
+      ..add(SettingsActionsNames.subjectNicks, _mirrorSettings);
+
+Future<void> _mirrorSettings(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
+    ActionHandler next,
+    Action action) async {
+  await next(action);
+  await _applySettingsToSharedStore(api);
+}
+
+Future<Map<dynamic, dynamic>?> _loadSubjects(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api) async {
+  final dynamic data = await wrapper.send(
+    "api/student/all_subjects",
+    args: {if (api.state.config != null) "studentId": api.state.config!.userId},
+  );
+  return data is Map ? data : null;
+}
+
+/// Looks every minute whether the evening summary is due. The background
+/// checks do the same while the app is closed; whoever comes first posts it.
+Timer? _eveningSummaryTimer;
+
+void _restartEveningSummaryTimer(
+    MiddlewareApi<AppState, AppStateBuilder, AppActions> api) {
+  _eveningSummaryTimer?.cancel();
+  _eveningSummaryTimer = null;
+  if (api.state.isDemo) return;
+  Future<void> check() async {
+    if (api.state.noInternet || !api.state.loginState.loggedIn) return;
+    await EveningSummary.runIfDue(
+      now: DateTime.now(),
+      loadDashboard: () async {
+        final dynamic data = await wrapper.send(
+            "api/student/dashboard/dashboard",
+            args: {"viewFuture": true});
+        return data is List ? data : null;
+      },
+      loadCalendar: (UtcDateTime monday) async {
+        final dynamic data = await wrapper.send("api/calendar/student",
+            args: {"startDate": DateFormat("yyyy-MM-dd").format(monday)});
+        return data is Map ? Map<String, dynamic>.from(data) : null;
+      },
+    );
+  }
+
+  _eveningSummaryTimer =
+      Timer.periodic(const Duration(minutes: 1), (_) => check());
+  unawaited(check());
+}
 
 Future<void> _loadNotifications(
     MiddlewareApi<AppState, AppStateBuilder, AppActions> api,
@@ -56,7 +108,10 @@ Future<void> _postNewNotifications(
   await next(action);
   if (!api.state.settingsState.notificationsEnabled) return;
   if (api.state.isDemo) return;
-  await NotificationWatcher.notifyAboutNew(action.payload);
+  await NotificationWatcher.notifyAboutNew(
+    action.payload,
+    loadSubjects: () => _loadSubjects(api),
+  );
 }
 
 Future<void> _deleteNotification(
@@ -104,6 +159,7 @@ Future<void> startWatchingForNotifications(
   await LocalNotificationService.init();
   await _applySettingsToSharedStore(api);
   _restartPollTimer(api);
+  _restartEveningSummaryTimer(api);
   await _applyAndroidBackgroundCheck(api);
 }
 
@@ -128,6 +184,8 @@ Future<void> stopWatchingForNotifications(
     LogoutPayload payload) async {
   _notificationPollTimer?.cancel();
   _notificationPollTimer = null;
+  _eveningSummaryTimer?.cancel();
+  _eveningSummaryTimer = null;
   if (payload.hard) {
     // A different account may follow, so do not announce its backlog. There are
     // also no credentials left for the alarm to log in with, so stop it.
@@ -192,6 +250,11 @@ Future<void> _applySettingsToSharedStore(
       settings.notificationIntervalSeconds);
   await NotificationStore.setBackgroundServiceEnabled(
       settings.backgroundServiceEnabled);
+  await NotificationStore.setEveningSummaryEnabled(
+      settings.eveningSummaryEnabled);
+  await NotificationStore.setEveningSummaryMinutes(
+      settings.eveningSummaryMinutes);
+  await NotificationStore.setSubjectNicks(settings.subjectNicks.toMap());
 }
 
 void _restartPollTimer(

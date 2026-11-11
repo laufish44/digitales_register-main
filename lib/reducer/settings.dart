@@ -113,7 +113,15 @@ final settingsReducerBuilder = NestedReducerBuilder<AppState, AppStateBuilder,
   ..add(
       SettingsActionsNames.setStartPage,
       (s, a, b) => b.startPage =
-          startPages.containsKey(a.payload) ? a.payload : startPageDashboard);
+          startPages.containsKey(a.payload) ? a.payload : startPageDashboard)
+  ..add(SettingsActionsNames.setShowSchoolEndCountdown,
+      (s, a, b) => b.showSchoolEndCountdown = a.payload)
+  ..add(SettingsActionsNames.setDashboardCompactView,
+      (s, a, b) => b.dashboardCompactView = a.payload)
+  ..add(SettingsActionsNames.setEveningSummaryEnabled,
+      (s, a, b) => b.eveningSummaryEnabled = a.payload)
+  ..add(SettingsActionsNames.setEveningSummaryMinutes,
+      (s, a, b) => b.eveningSummaryMinutes = a.payload.clamp(0, 24 * 60 - 1));
 
 /// Drops entries that cannot be a lesson, so a mistyped time cannot make the
 /// timetable nonsensical.

@@ -25,7 +25,6 @@ import 'package:dr/data.dart';
 import 'package:dr/reducer/dashboard.dart' show parseGradeGroupSubmission;
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart';
-import 'package:flutter/foundation.dart' show visibleForTesting;
 
 final calendarReducerBuilder = NestedReducerBuilder<AppState, AppStateBuilder,
     CalendarState, CalendarStateBuilder>(
@@ -63,7 +62,8 @@ void _loaded(CalendarState state, Action<Map<String, dynamic>> action,
 ///
 /// Exposed so the parsing can be checked against a real response without
 /// standing up a store.
-@visibleForTesting
+/// One answer of `api/calendar/student` on its own, outside the store — for
+/// the evening summary and the tests.
 CalendarState parseCalendarResponse(Map<String, dynamic> response) {
   final builder = CalendarStateBuilder();
   _loaded(

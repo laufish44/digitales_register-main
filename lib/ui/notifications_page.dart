@@ -45,6 +45,17 @@ class NotificationPage extends StatelessWidget {
     required this.lastFetched,
     this.history = const [],
   });
+
+  void _openHistory(BuildContext context) => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => NotificationHistoryPage(
+            history: history,
+            unreadIds: {for (final n in notifications) n.id},
+            goToMessage: goToMessage,
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -54,15 +65,7 @@ class NotificationPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.history),
             tooltip: "Verlauf",
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => NotificationHistoryPage(
-                  history: history,
-                  unreadIds: {for (final n in notifications) n.id},
-                  goToMessage: goToMessage,
-                ),
-              ),
-            ),
+            onPressed: () => _openHistory(context),
           ),
         ],
       ),
@@ -73,10 +76,21 @@ class NotificationPage extends StatelessWidget {
           duration: const Duration(milliseconds: 250),
           child: notifications.isEmpty
               ? Center(
-                  child: Text(
-                    "Keine Benachrichtigungen",
-                    style: Theme.of(context).textTheme.headlineMedium,
-                    textAlign: TextAlign.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "Keine neuen Benachrichtigungen",
+                        style: Theme.of(context).textTheme.headlineMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.history),
+                        label: const Text("Verlauf anzeigen"),
+                        onPressed: () => _openHistory(context),
+                      ),
+                    ],
                   ),
                 )
               : ListView.builder(
@@ -156,7 +170,9 @@ class NotificationHistoryPage extends StatelessWidget {
                 final opensMessage = n.type == "message" && n.objectId != null;
                 return ListTile(
                   leading: Icon(
-                    unread ? Icons.notifications_active : Icons.notifications_none,
+                    unread
+                        ? Icons.notifications_active
+                        : Icons.notifications_none,
                     color: unread ? theme.colorScheme.primary : null,
                   ),
                   title: Text(

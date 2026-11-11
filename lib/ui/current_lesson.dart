@@ -46,45 +46,76 @@ class PageTitle extends StatelessWidget {
   }
 }
 
-/// "Mathematik · noch 23:14" while a lesson is on, nothing otherwise. A
-/// double lesson counts down to the end of both, with the end of the current
-/// hour in brackets.
+/// "Mathematik · noch 23:14" while a lesson is on, "Pause · noch 8:30 → Ita"
+/// in a break, nothing otherwise. A double lesson counts down to the end of
+/// both, with the end of the current hour in brackets.
 class CurrentLessonIndicator extends StatelessWidget {
   const CurrentLessonIndicator({super.key});
 
   @override
   Widget build(BuildContext context) {
     return StoreConnection<AppState, AppActions,
-        (CalendarState, BuiltList<LessonTime>, BuiltMap<String, String>)>(
+        (CalendarState, BuiltList<LessonTime>, BuiltMap<String, String>, bool)>(
       connect: (state) => (
         state.calendarState,
         state.settingsState.lessonSchedule,
         state.settingsState.subjectNicks,
+        state.settingsState.showSchoolEndCountdown,
       ),
       builder: (context, vm, actions) {
         final times = LessonTimes.resolve(vm.$2);
         return SchoolClock(
           interval: const Duration(seconds: 1),
           builder: (context, now) {
+            final end = schoolEnd(vm.$1, times, now);
             final lesson = currentLesson(vm.$1, times, now);
-            if (lesson == null) return const SizedBox.shrink();
-            return CurrentLessonChip(
-              subject: _nick(vm.$3, lesson.subject),
-              lesson: lesson,
-              now: now,
+            if (lesson != null) {
+              return CurrentLessonChip(
+                subject: subjectNick(vm.$3, lesson.subject),
+                lesson: lesson,
+                now: now,
+                schoolEnd: end,
+                showSchoolEnd: vm.$4,
+              );
+            }
+            final pause = currentBreak(vm.$1, times, now);
+            if (pause == null) return const SizedBox.shrink();
+            return CountdownChip(
+              icon: Icons.free_breakfast_outlined,
+              text: breakLabel(subjectNick(vm.$3, pause.subject), pause.start,
+                  now, vm.$4 ? end : null),
+              tooltip: [
+                "Pause bis ${_clock(pause.start)}, dann ${pause.subject}",
+                if (end != null) schoolEndLabel(end, now),
+              ].join("\n"),
             );
           },
         );
       },
     );
   }
+}
 
-  static String _nick(BuiltMap<String, String> nicks, String subject) {
-    for (final entry in nicks.entries) {
-      if (entry.key.toLowerCase() == subject.toLowerCase()) return entry.value;
-    }
-    return subject;
+String subjectNick(BuiltMap<String, String> nicks, String subject) {
+  for (final entry in nicks.entries) {
+    if (entry.key.toLowerCase() == subject.toLowerCase()) return entry.value;
   }
+  return subject;
+}
+
+String _clock(UtcDateTime t) =>
+    "${t.hour.toString().padLeft(2, "0")}:${t.minute.toString().padLeft(2, "0")}";
+
+/// "Schulschluss in 2:15:00".
+String schoolEndLabel(UtcDateTime end, UtcDateTime now) =>
+    "Schulschluss in ${CurrentLessonChip.countdown(end.difference(now))}";
+
+/// "Pause · noch 8:30 → Ita", with the school end when [end] is given.
+String breakLabel(
+    String next, UtcDateTime start, UtcDateTime now, UtcDateTime? end) {
+  final text =
+      "Pause · noch ${CurrentLessonChip.countdown(start.difference(now))} → $next";
+  return end == null ? text : "$text · ${schoolEndLabel(end, now)}";
 }
 
 class CurrentLessonChip extends StatelessWidget {
@@ -93,11 +124,18 @@ class CurrentLessonChip extends StatelessWidget {
     required this.subject,
     required this.lesson,
     required this.now,
+    this.schoolEnd,
+    this.showSchoolEnd = false,
   });
 
   final String subject;
   final CurrentLesson lesson;
   final UtcDateTime now;
+
+  /// When school is over today; always in the tooltip, in the chip itself
+  /// only with [showSchoolEnd].
+  final UtcDateTime? schoolEnd;
+  final bool showSchoolEnd;
 
   static String countdown(Duration left) {
     final seconds = left.inSeconds < 0 ? 0 : left.inSeconds;
@@ -117,13 +155,44 @@ class CurrentLessonChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final hours = lesson.fromHour == lesson.toHour
         ? "${lesson.fromHour}. Stunde"
         : "${lesson.fromHour}.–${lesson.toHour}. Stunde";
+    final end = schoolEnd;
+    // The school end only when it is not just the end of this lesson.
+    final showEnd = end != null && end != lesson.end;
+    return CountdownChip(
+      icon: Icons.schedule,
+      text: [
+        label(subject, lesson, now),
+        if (showSchoolEnd && showEnd) schoolEndLabel(end, now),
+      ].join(" · "),
+      tooltip: [
+        "$hours · bis ${_clock(lesson.end)}",
+        if (showEnd) schoolEndLabel(end, now),
+      ].join("\n"),
+    );
+  }
+}
+
+/// The rounded chip the countdowns are shown in.
+class CountdownChip extends StatelessWidget {
+  const CountdownChip({
+    super.key,
+    required this.icon,
+    required this.text,
+    required this.tooltip,
+  });
+
+  final IconData icon;
+  final String text;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Tooltip(
-      message: "$hours · bis ${lesson.end.hour.toString().padLeft(2, "0")}:"
-          "${lesson.end.minute.toString().padLeft(2, "0")}",
+      message: tooltip,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
@@ -133,11 +202,11 @@ class CurrentLessonChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.schedule, size: 16),
+            Icon(icon, size: 16),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
-                label(subject, lesson, now),
+                text,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontFeatures: const [FontFeature.tabularFigures()],

@@ -416,6 +416,18 @@ abstract class SettingsState
   /// school_year.dart. Null in a state stored before it existed.
   int? get schoolCalendarRevision;
 
+  /// "Schulschluss in 2:15:00" next to the lesson countdown.
+  bool get showSchoolEndCountdown;
+
+  /// The register as one row per day instead of the full list.
+  bool get dashboardCompactView;
+
+  /// An evening notification about the next school day.
+  bool get eveningSummaryEnabled;
+
+  /// When it comes, in minutes after midnight.
+  int get eveningSummaryMinutes;
+
   factory SettingsState([Function(SettingsStateBuilder b)? updates]) =
       _$SettingsState;
   SettingsState._();
@@ -478,7 +490,11 @@ abstract class SettingsState
       ..lessonSchedule = ListBuilder(defaultLessonTimes)
       ..prefetchWholeCalendar = true
       ..semestersPerYear = 2
-      ..startPage = startPageDashboard;
+      ..startPage = startPageDashboard
+      ..showSchoolEndCountdown = false
+      ..dashboardCompactView = false
+      ..eveningSummaryEnabled = true
+      ..eveningSummaryMinutes = 18 * 60;
   }
 }
 

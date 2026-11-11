@@ -18,7 +18,9 @@
 import 'package:badges/badges.dart' as badge;
 import 'package:built_collection/built_collection.dart';
 import 'package:deleteable_tile/deleteable_tile.dart';
+import 'package:dr/ui/compact_days.dart';
 import 'package:dr/ui/current_lesson.dart';
+import 'package:dr/ui/dashboard_hints.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/container/dashboard_widgets_container.dart';
 import 'package:dr/container/days_container.dart';
@@ -228,12 +230,12 @@ class _DaysWidgetState extends State<DaysWidget> {
       );
     }
     if (n.isEven) {
-      return const Divider(
-        height: 16,
+      return Divider(
+        height: widget.vm.compact ? 1 : 16,
       );
     }
     final itemIndex = (n - 1) ~/ 2;
-    return DayWidget(
+    final dayWidget = DayWidget(
       day: widget.vm.days[itemIndex],
       vm: widget.vm,
       controller: controller,
@@ -250,6 +252,14 @@ class _DaysWidgetState extends State<DaysWidget> {
       colorTestsInRed: widget.vm.colorTestsInRed,
       subjectThemes: widget.vm.subjectThemes,
       showLastFetched: showLastFetched,
+    );
+    if (!widget.vm.compact) return dayWidget;
+    return CompactDayRow(
+      key: ValueKey(widget.vm.days[itemIndex].date),
+      day: widget.vm.days[itemIndex],
+      holidays: widget.vm.holidays,
+      nicks: widget.vm.subjectNicks,
+      expanded: dayWidget,
     );
   }
 
@@ -378,7 +388,8 @@ class _DaysWidgetState extends State<DaysWidget> {
               mini: true,
               child: const Icon(Icons.close),
             ),
-          if (_targets.isNotEmpty && _afterFirstFrame)
+          // The overview has no cards to jump to.
+          if (_targets.isNotEmpty && _afterFirstFrame && !widget.vm.compact)
             FloatingActionButton.extended(
               backgroundColor: Colors.red,
               icon: const Icon(Icons.arrow_drop_down),
@@ -417,7 +428,8 @@ class _DaysWidgetState extends State<DaysWidget> {
               MaterialPageRoute<void>(builder: (_) => const SearchPage()),
             ),
           ),
-          if (widget.vm.showNotifications) NotificationIconContainer(),
+          // Also with nothing new, for the history (#27).
+          NotificationIconContainer(),
         ],
       ),
       drawerBuilder: (widgetSelected, goHome, currentSelected, tabletMode) {
@@ -451,6 +463,7 @@ class DashboardHeader extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const DashboardWidgetsContainer(),
+        const DashboardHints(),
         _buildFilterRow(context),
       ],
     );

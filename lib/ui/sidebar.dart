@@ -19,6 +19,7 @@ import 'package:collapsible_sidebar/collapsible_sidebar.dart';
 import 'package:dr/main.dart';
 import 'package:dr/middleware/middleware.dart';
 import 'package:dr/school_year.dart';
+import 'package:dr/ui/mini_window.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:flutter/material.dart';
 
@@ -192,6 +193,13 @@ class Sidebar extends StatelessWidget {
                 ? Icons.flag_outlined
                 : Icons.beach_access_outlined,
             onPressed: () => showCountdownDate?.call(countdown.date),
+          ),
+        if (miniWindowSupported)
+          CollapsibleItem(
+            hasDivider: true,
+            text: "Mini-Fenster",
+            icon: Icons.picture_in_picture_alt_outlined,
+            onPressed: toggleMiniWindow,
           ),
         CollapsibleItem(
           hasDivider: true,

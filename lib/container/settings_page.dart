@@ -164,6 +164,9 @@ class SettingsViewModel {
   final bool prefetchWholeCalendar;
   final int semestersPerYear;
   final String startPage;
+  final bool showSchoolEndCountdown;
+  final bool eveningSummaryEnabled;
+  final int eveningSummaryMinutes;
 
   /// Lessons in a normal week according to the calendar, what "Stunden pro
   /// Woche" falls back to. Null before the calendar is loaded.
@@ -222,6 +225,9 @@ class SettingsViewModel {
         prefetchWholeCalendar = state.settingsState.prefetchWholeCalendar,
         semestersPerYear = state.settingsState.semestersPerYear,
         startPage = state.settingsState.startPage,
+        showSchoolEndCountdown = state.settingsState.showSchoolEndCountdown,
+        eveningSummaryEnabled = state.settingsState.eveningSummaryEnabled,
+        eveningSummaryMinutes = state.settingsState.eveningSummaryMinutes,
         detectedWeeklyLessons =
             AbsenceStats.weeklyLessonsFromCalendar(state.calendarState),
         demoMode = state.isDemo;

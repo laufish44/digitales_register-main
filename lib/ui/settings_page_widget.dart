@@ -28,6 +28,7 @@ import 'package:dr/ui/feedback_dialog.dart';
 import 'package:dr/background/android_background.dart';
 import 'package:dr/fork_info.dart';
 import 'package:dr/lesson_times.dart';
+import 'package:dr/main.dart' show actions;
 import 'package:dr/school_year.dart';
 import 'package:dr/theme.dart';
 import 'package:dr/ui/network_protocol_page.dart';
@@ -555,6 +556,11 @@ class _ThemeSwatch extends StatelessWidget {
 
 /// The intervals offered in the settings, in seconds.
 const _intervalChoices = [15, 30, 60, 120, 300, 600, 1800, 3600];
+
+/// 1080 → "18:00 Uhr".
+String _formatMinutes(int minutes) =>
+    "${(minutes ~/ 60).toString().padLeft(2, "0")}:"
+    "${(minutes % 60).toString().padLeft(2, "0")} Uhr";
 
 String _formatInterval(int seconds) {
   if (seconds < 60) return "Alle $seconds Sekunden";
@@ -1365,6 +1371,36 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
                   : null,
               value: widget.vm.backgroundServiceEnabled,
             ),
+          SwitchListTile.adaptive(
+            title: const Text("Abendübersicht"),
+            subtitle: const Text(
+                "Am Vorabend: wie viele Stunden, welche Hausaufgaben und Tests"),
+            onChanged: widget.vm.notificationsEnabled
+                ? actions.settingsActions.setEveningSummaryEnabled.call
+                : null,
+            value: widget.vm.eveningSummaryEnabled,
+          ),
+          ListTile(
+            enabled: widget.vm.notificationsEnabled &&
+                widget.vm.eveningSummaryEnabled,
+            title: const Text("Uhrzeit der Abendübersicht"),
+            subtitle: Text(_formatMinutes(widget.vm.eveningSummaryMinutes)),
+            trailing: const Icon(Icons.schedule),
+            onTap: () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay(
+                  hour: widget.vm.eveningSummaryMinutes ~/ 60,
+                  minute: widget.vm.eveningSummaryMinutes % 60,
+                ),
+                helpText: "Abendübersicht",
+              );
+              if (picked != null) {
+                actions.settingsActions
+                    .setEveningSummaryMinutes(picked.hour * 60 + picked.minute);
+              }
+            },
+          ),
           const Divider(),
           ListTile(
             title: Text(
@@ -1394,6 +1430,14 @@ class _SettingsPageWidgetState extends State<SettingsPageWidget> {
                 const Text("Bis zu den nächsten Ferien und bis zum Schulende"),
             onChanged: widget.onSetShowSchoolYearCountdown,
             value: widget.vm.showSchoolYearCountdown,
+          ),
+          SwitchListTile.adaptive(
+            title: const Text("Schulschluss beim Stunden-Countdown"),
+            subtitle: const Text(
+                "„Schulschluss in 2:15:00“ neben dem Countdown oben – im "
+                "Tooltip steht er immer"),
+            onChanged: actions.settingsActions.setShowSchoolEndCountdown.call,
+            value: widget.vm.showSchoolEndCountdown,
           ),
           ListTile(
             title: const Text("Letzter Schultag"),

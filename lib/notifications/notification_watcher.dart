@@ -25,6 +25,7 @@ import 'dart:developer';
 
 import 'package:dr/notifications/notification_service.dart';
 import 'package:dr/notifications/notification_store.dart';
+import 'package:dr/notifications/summaries.dart';
 import 'package:dr/util.dart';
 
 /// Beyond this many new entries a single summary is shown instead of one
@@ -38,7 +39,14 @@ class NotificationWatcher {
   /// response) with what the user has already seen and posts the difference.
   ///
   /// Returns the number of notifications that were posted.
-  static Future<int> notifyAboutNew(List<dynamic> rawNotifications) async {
+  ///
+  /// [loadSubjects] fetches `api/student/all_subjects`; with it, a new grade
+  /// says how it moved the subject's average. It is only called when there is
+  /// a new grade.
+  static Future<int> notifyAboutNew(
+    List<dynamic> rawNotifications, {
+    Future<Map<dynamic, dynamic>?> Function()? loadSubjects,
+  }) async {
     final entries = <_Entry>[];
     for (final raw in rawNotifications) {
       // A single unexpected entry must not stop us from telling the user about
@@ -53,6 +61,8 @@ class NotificationWatcher {
             id: id,
             title: getString(map["title"]) ?? "Digitales Register",
             subTitle: getString(map["subTitle"]),
+            type: getString(map["type"]),
+            subjectId: getInt(map["subjectId"]),
           ),
         );
       } catch (e) {
@@ -93,11 +103,30 @@ class NotificationWatcher {
     if (fresh.isEmpty) return 0;
 
     if (fresh.length <= _maxIndividualNotifications) {
+      Map<dynamic, dynamic>? subjects;
+      var subjectsLoaded = false;
       for (final entry in fresh) {
+        var body = entry.subTitle ?? "Neu im Digitalen Register";
+        if (entry.type == "grade" &&
+            entry.subjectId != null &&
+            loadSubjects != null) {
+          try {
+            if (!subjectsLoaded) {
+              subjectsLoaded = true;
+              subjects = await loadSubjects();
+            }
+            final change = subjects == null
+                ? null
+                : averageChange(subjects, entry.subjectId!);
+            if (change != null) body = "$body\n${formatAverageChange(change)}";
+          } catch (e) {
+            log("could not work out the new average", error: e);
+          }
+        }
         await LocalNotificationService.show(
           id: entry.id,
           title: entry.title,
-          body: entry.subTitle ?? "Neu im Digitalen Register",
+          body: body,
           payload: entry.id.toString(),
         );
       }
@@ -122,9 +151,19 @@ class NotificationWatcher {
 const _summaryNotificationId = 0x7fffffff;
 
 class _Entry {
-  _Entry({required this.id, required this.title, this.subTitle});
+  _Entry({
+    required this.id,
+    required this.title,
+    this.subTitle,
+    this.type,
+    this.subjectId,
+  });
 
   final int id;
   final String title;
   final String? subTitle;
+
+  /// "grade", "message", … see `notificationTypes` in the register's web app.
+  final String? type;
+  final int? subjectId;
 }

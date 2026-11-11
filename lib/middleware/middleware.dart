@@ -56,6 +56,7 @@ import 'package:dr/main.dart';
 import 'package:dr/notifications/notification_service.dart';
 import 'package:dr/notifications/notification_store.dart';
 import 'package:dr/notifications/notification_watcher.dart';
+import 'package:dr/notifications/summaries.dart';
 import 'package:dr/remote_config.dart';
 import 'package:dr/school_year.dart';
 import 'package:dr/serializers.dart';

@@ -41,6 +41,7 @@ import 'package:dr/remote_config.dart';
 import 'package:dr/theme.dart';
 import 'package:dr/ui/grade_calculator.dart';
 import 'package:dr/ui/grades_chart_page.dart';
+import 'package:dr/ui/mini_window.dart';
 import 'package:dr/util.dart';
 import 'package:dr/windows_data_migration.dart';
 import 'package:dynamic_theme/dynamic_theme.dart';
@@ -86,6 +87,15 @@ Future<void> main(List<String> args) async {
           !HardwareKeyboard.instance.isAltPressed &&
           !HardwareKeyboard.instance.isShiftPressed) {
         closeMainWindow();
+        return true;
+      }
+      // Ctrl+Shift+M: the mini window and back.
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.keyM &&
+          HardwareKeyboard.instance.isControlPressed &&
+          HardwareKeyboard.instance.isShiftPressed &&
+          !HardwareKeyboard.instance.isAltPressed) {
+        toggleMiniWindow();
         return true;
       }
       return false;
@@ -247,6 +257,17 @@ class RegisterApp extends StatelessWidget {
               },
               theme: theme,
               debugShowCheckedModeBanner: false,
+              // The mini window (Windows) lies over the app, which stays
+              // alive underneath so nothing is lost when going back.
+              builder: (context, child) => ValueListenableBuilder<bool>(
+                valueListenable: miniWindow,
+                builder: (context, mini, _) => Stack(
+                  children: [
+                    Offstage(offstage: mini, child: child),
+                    if (mini) const Positioned.fill(child: MiniWindowView()),
+                  ],
+                ),
+              ),
             ),
           ),
         ),

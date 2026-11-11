@@ -78,7 +78,7 @@ void _updateSubjects(BuiltList<Subject> oldSubjects,
         (b) => b
           ..gradesAll[semester] = BuiltList(
             getList(subject["grades"])!.map<GradeAll>(
-              (dynamic g) => tryParse(getMap(g)!, _parseGradeAll),
+              (dynamic g) => tryParse(getMap(g)!, parseGradeAll),
             ),
           )
           ..lastFetchedBasic[semester] = UtcDateTime.now(),
@@ -93,7 +93,7 @@ void _updateSubjects(BuiltList<Subject> oldSubjects,
               {
                 semester: BuiltList<GradeAll>(
                   getList(subject["grades"])!.map<GradeAll>(
-                    (dynamic g) => tryParse(getMap(g)!, _parseGradeAll),
+                    (dynamic g) => tryParse(getMap(g)!, parseGradeAll),
                   ),
                 ),
               },
@@ -188,7 +188,8 @@ int? _parseGradeValue(String? grade) {
   return gradeValue;
 }
 
-GradeAll _parseGradeAll(Map data) {
+/// One grade of the subject list (`api/student/all_subjects`).
+GradeAll parseGradeAll(Map data) {
   return GradeAll(
     (b) => b
       ..grade = tryParse(getString(data["grade"]), _parseGradeValue)

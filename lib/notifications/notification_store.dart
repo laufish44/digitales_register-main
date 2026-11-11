@@ -23,6 +23,7 @@
 /// can read and write because they are the same application.
 library;
 
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,6 +42,10 @@ class NotificationStore {
   static const _intervalKey = "notifications_interval_seconds";
   static const _backgroundServiceKey = "notifications_background_service";
   static const _seenIdsKey = "notifications_seen_ids";
+  static const _eveningEnabledKey = "evening_summary_enabled";
+  static const _eveningMinutesKey = "evening_summary_minutes";
+  static const _eveningLastDayKey = "evening_summary_last_day";
+  static const _subjectNicksKey = "subject_nicks";
 
   /// Keeping more than this many ids would grow without bound; notifications
   /// that old will never show up as "unread" again anyway.
@@ -83,6 +88,40 @@ class NotificationStore {
 
   static Future<void> setBackgroundServiceEnabled(bool value) async =>
       (await _prefs).setBool(_backgroundServiceKey, value);
+
+  static Future<bool> get eveningSummaryEnabled async =>
+      (await _prefs).getBool(_eveningEnabledKey) ?? true;
+
+  static Future<void> setEveningSummaryEnabled(bool value) async =>
+      (await _prefs).setBool(_eveningEnabledKey, value);
+
+  /// Minutes after midnight.
+  static Future<int> get eveningSummaryMinutes async =>
+      (await _prefs).getInt(_eveningMinutesKey) ?? 18 * 60;
+
+  static Future<void> setEveningSummaryMinutes(int value) async =>
+      (await _prefs).setInt(_eveningMinutesKey, value);
+
+  /// The day ("2026-11-10") the last evening summary was posted on.
+  static Future<String?> get eveningSummaryLastDay async =>
+      (await _prefs).getString(_eveningLastDayKey);
+
+  static Future<void> setEveningSummaryLastDay(String value) async =>
+      (await _prefs).setString(_eveningLastDayKey, value);
+
+  /// The subject nicknames from the settings, so the summaries can be short.
+  static Future<Map<String, String>> get subjectNicks async {
+    try {
+      final raw = (await _prefs).getString(_subjectNicksKey);
+      if (raw == null) return const {};
+      return Map<String, String>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  static Future<void> setSubjectNicks(Map<String, String> nicks) async =>
+      (await _prefs).setString(_subjectNicksKey, jsonEncode(nicks));
 
   /// The ids of the notifications the user has already been told about.
   ///

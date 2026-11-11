@@ -82,4 +82,10 @@ abstract class SettingsActions extends ReduxActions {
   /// 1 or 2.
   abstract final ActionDispatcher<int> setSemestersPerYear;
   abstract final ActionDispatcher<String> setStartPage;
+  abstract final ActionDispatcher<bool> setShowSchoolEndCountdown;
+  abstract final ActionDispatcher<bool> setDashboardCompactView;
+  abstract final ActionDispatcher<bool> setEveningSummaryEnabled;
+
+  /// Minutes after midnight.
+  abstract final ActionDispatcher<int> setEveningSummaryMinutes;
 }

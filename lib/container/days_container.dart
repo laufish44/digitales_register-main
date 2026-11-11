@@ -112,6 +112,10 @@ abstract class DaysViewModel
   /// To mark the days without school.
   BuiltList<HolidayPeriod> get holidays;
 
+  /// One row per day instead of the full cards (22).
+  bool get compact;
+  BuiltMap<String, String> get subjectNicks;
+
   factory DaysViewModel([void Function(DaysViewModelBuilder)? updates]) =
       _$DaysViewModel;
   DaysViewModel._();
@@ -149,7 +153,9 @@ abstract class DaysViewModel
         ..colorBorders = state.settingsState.dashboardColorBorders
         ..colorTestsInRed = state.settingsState.dashboardColorTestsInRed
         ..subjectThemes = state.settingsState.subjectThemes.toBuilder()
-        ..holidays = state.settingsState.holidays.toBuilder(),
+        ..holidays = state.settingsState.holidays.toBuilder()
+        ..compact = state.settingsState.dashboardCompactView
+        ..subjectNicks = state.settingsState.subjectNicks.toBuilder(),
     );
   }
 }

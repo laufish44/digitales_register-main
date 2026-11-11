@@ -162,8 +162,8 @@ void main() {
     });
 
     test("an attachment saved by an older version still counts as a file", () {
-      final old = parseGradeGroupSubmission(_file)!
-          .rebuild((b) => b..type = null);
+      final old =
+          parseGradeGroupSubmission(_file)!.rebuild((b) => b..type = null);
       expect(old.isFile, isTrue);
     });
 
@@ -194,7 +194,8 @@ void main() {
           ),
         ),
       ));
-      expect(find.text("Was ist auf die Schularbeit zu lernen"), findsOneWidget);
+      expect(
+          find.text("Was ist auf die Schularbeit zu lernen"), findsOneWidget);
       expect(find.textContaining("Kurvendiskussion", findRichText: true),
           findsOneWidget);
     });

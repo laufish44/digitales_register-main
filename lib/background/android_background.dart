@@ -36,7 +36,6 @@ import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:dr/background/credentials.dart';
 import 'package:dr/notifications/notification_service.dart';
 import 'package:dr/notifications/notification_store.dart';
-import 'package:dr/notifications/notification_watcher.dart';
 import 'package:dr/notifications/register_api.dart';
 import 'package:flutter/widgets.dart';
 
@@ -131,7 +130,7 @@ Future<void> androidBackgroundCheck() async {
       log("background check: could not read the notifications");
       return;
     }
-    await NotificationWatcher.notifyAboutNew(unread);
+    await api.notifyAboutNew(unread);
   } catch (e, trace) {
     // Never let this throw: an uncaught error here takes down the alarm
     // service and Android stops waking us.

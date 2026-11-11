@@ -1265,3 +1265,125 @@ class UpcomingExam {
     return "In ${(days / 7).floor()} Wochen";
   }
 }
+
+/// The week's homework at a glance (16): how many of the entries that can be
+/// ticked off are ticked.
+class WeekProgress {
+  const WeekProgress({required this.done, required this.total});
+
+  final int done, total;
+
+  double get share => total == 0 ? 0 : done / total;
+
+  /// For the week (Monday to Sunday) that holds [now]; null when nothing in
+  /// it can be ticked off.
+  static WeekProgress? of(DashboardState dashboard, UtcDateTime now) {
+    final monday = toMonday(UtcDateTime(now.year, now.month, now.day));
+    final nextMonday = monday.add(const Duration(days: 7));
+    var done = 0, total = 0;
+    for (final day in dashboard.allDays ?? const <Day>[]) {
+      final date = UtcDateTime(day.date.year, day.date.month, day.date.day);
+      if (date.isBefore(monday) || !date.isBefore(nextMonday)) continue;
+      for (final entry in day.homework) {
+        if (entry.deleted || !entry.checkable) continue;
+        total++;
+        if (entry.checked) done++;
+      }
+    }
+    return total == 0 ? null : WeekProgress(done: done, total: total);
+  }
+}
+
+/// Weeks with many tests (17).
+class ExamDensity {
+  ExamDensity._();
+
+  /// From this many tests on, a week is worth a warning.
+  static const threshold = 3;
+
+  /// The number of tests per week (by its Monday), from this week on, for
+  /// the weeks with at least [minimum]. From one source only — the dashboard
+  /// and the calendar name the same test differently, so mixing them would
+  /// count it twice.
+  static Map<UtcDateTime, int> perWeek({
+    required CalendarState calendar,
+    DashboardState? dashboard,
+    required UtcDateTime now,
+    int minimum = threshold,
+  }) {
+    final thisMonday = toMonday(UtcDateTime(now.year, now.month, now.day));
+    final seen = <String>{};
+    final counts = <UtcDateTime, int>{};
+    for (final entry in Agenda.collect(
+      calendar: dashboard == null ? calendar : CalendarState(),
+      dashboard: dashboard,
+      includeCalendar: dashboard == null,
+    )) {
+      // `warning` (homework == 0) rather than `isExam`: a homework entered by
+      // the teacher is a "gradeGroup" too.
+      if (!entry.warning || entry.isReminder) continue;
+      if (!seen.add(entry.identity)) continue;
+      final monday = toMonday(UtcDateTime(
+          entry.deadline.year, entry.deadline.month, entry.deadline.day));
+      if (monday.isBefore(thisMonday)) continue;
+      counts.update(monday, (v) => v + 1, ifAbsent: () => 1);
+    }
+    counts.removeWhere((_, count) => count < minimum);
+    return counts;
+  }
+
+  /// The ISO week number of [date], for "KW 49".
+  static int weekNumber(UtcDateTime date) {
+    final thursday = date.add(Duration(days: 4 - date.weekday));
+    final firstOfYear = UtcDateTime(thursday.year, 1, 1);
+    return thursday.difference(firstOfYear).inDays ~/ 7 + 1;
+  }
+}
+
+/// The grade a subject is heading for on the report card (8).
+class ReportForecast {
+  const ReportForecast({
+    required this.subject,
+    required this.average,
+    required this.grade,
+    required this.close,
+  });
+
+  final String subject;
+
+  /// Scaled by 100, like every grade in the app.
+  final double average;
+
+  /// The whole grade the average rounds to.
+  final int grade;
+
+  /// Within a tenth of the line between two grades: a single test can still
+  /// tip it either way.
+  final bool close;
+
+  bool get failing => grade < 6;
+
+  static ReportForecast forAverage(String subject, double average) {
+    final value = average / 100;
+    final grade = value.round();
+    final fraction = value - value.floor();
+    return ReportForecast(
+      subject: subject,
+      average: average,
+      grade: grade,
+      close: (fraction - 0.5).abs() <= 0.1,
+    );
+  }
+
+  /// One per subject with grades in [semester], best first.
+  static List<ReportForecast> forSubjects(
+      Iterable<Subject> subjects, Semester semester) {
+    return [
+      for (final subject in subjects)
+        if (GradeStats.subjectAverage(
+                subject.basicGrades(semester) ?? const <GradeAll>[])
+            case final average?)
+          forAverage(subject.name, average),
+    ]..sort((a, b) => b.average.compareTo(a.average));
+  }
+}

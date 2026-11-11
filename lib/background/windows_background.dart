@@ -31,7 +31,6 @@ import 'dart:io';
 import 'package:dr/background/credentials.dart';
 import 'package:dr/notifications/notification_service.dart';
 import 'package:dr/notifications/notification_store.dart';
-import 'package:dr/notifications/notification_watcher.dart';
 import 'package:dr/notifications/register_api.dart';
 import 'package:dr/windows_data_migration.dart';
 import 'package:flutter/widgets.dart';
@@ -109,7 +108,7 @@ Future<void> runWindowsBackgroundService() async {
         api.close();
         api = null;
       } else {
-        await NotificationWatcher.notifyAboutNew(unread);
+        await api.notifyAboutNew(unread);
       }
     } catch (e, trace) {
       log("background service iteration failed", error: e, stackTrace: trace);

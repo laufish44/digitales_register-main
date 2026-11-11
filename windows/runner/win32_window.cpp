@@ -165,6 +165,11 @@ LRESULT CALLBACK Win32Window::WndProc(HWND const window,
   if (message == WM_GETMINMAXINFO) {
     // Answered here: it arrives before WM_NCCREATE, and nothing further down
     // has an opinion about it.
+    // The mini window (set from Dart, lib/background/windows_window.dart) is
+    // far smaller than the normal minimum.
+    if (::GetPropW(window, L"DigitalesRegisterMini") != nullptr) {
+      return 0;
+    }
     auto* info = reinterpret_cast<MINMAXINFO*>(lparam);
     const double scale_factor =
         FlutterDesktopGetDpiForMonitor(

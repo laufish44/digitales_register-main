@@ -54,6 +54,9 @@ class CalendarViewModel {
   final UtcDateTime currentMonday;
   final CalendarSelection? selection;
 
+  /// Tests in the week shown, for the warning next to its dates (17).
+  final int examsThisWeek;
+
   CalendarViewModel(AppState state)
       : first = state.calendarState.currentDays.isEmpty
             ? null
@@ -71,5 +74,11 @@ class CalendarViewModel {
             ) &&
             state.settingsState.showCalendarNicksBar,
         noInternet = state.noInternet,
-        selection = state.calendarState.selection;
+        selection = state.calendarState.selection,
+        examsThisWeek = {
+          for (final day in state.calendarState.currentDays)
+            for (final hour in day.hours)
+              for (final exam in hour.homeworkExams)
+                if (!exam.homework) exam.id,
+        }.length;
 }

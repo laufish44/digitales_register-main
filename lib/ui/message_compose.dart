@@ -31,6 +31,7 @@ import 'package:dr/ui/messages.dart' show plainTextOfMessage;
 import 'package:dr/util.dart' show getList, getMap;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// How the compose screen was opened.
 enum ComposeMode { newMessage, reply, forward }
@@ -99,11 +100,74 @@ class _MessageComposePageState extends State<MessageComposePage> {
   /// italics, as in an e-mail (#24).
   bool includeQuote = true;
 
+  /// Set when a saved draft was put back, for the banner offering to throw it
+  /// away.
+  bool draftRestored = false;
+  Timer? draftDebounce;
+  bool sent = false;
+
+  String get _draftKey => switch (widget.mode) {
+        ComposeMode.newMessage => "new",
+        ComposeMode.reply => "reply_${widget.source?.id}",
+        ComposeMode.forward => "forward_${widget.source?.id}",
+      };
+
   @override
   void initState() {
     super.initState();
     unawaited(_loadTypes());
     _prefillFromSource();
+    unawaited(_restoreDraft());
+    subjectController.addListener(_scheduleDraftSave);
+    textController.addListener(_scheduleDraftSave);
+  }
+
+  Future<void> _restoreDraft() async {
+    final draft = await MessageDrafts.load(_draftKey);
+    if (draft == null || !mounted) return;
+    setState(() {
+      if (draft.subject.isNotEmpty) subjectController.text = draft.subject;
+      textController.text = draft.text;
+      for (final raw in draft.groups) {
+        final group = RecipientGroup(raw);
+        if (!selectedGroups.any((g) => g.sameAs(group))) {
+          selectedGroups.add(group);
+        }
+      }
+      draftRestored = true;
+    });
+  }
+
+  void _scheduleDraftSave() {
+    draftDebounce?.cancel();
+    draftDebounce = Timer(const Duration(milliseconds: 600), _saveDraft);
+  }
+
+  Future<void> _saveDraft() async {
+    if (sent) return;
+    await MessageDrafts.save(
+      _draftKey,
+      MessageDraft(
+        subject: subjectController.text,
+        text: textController.text,
+        groups: [for (final g in selectedGroups) g.raw],
+      ),
+    );
+  }
+
+  Future<void> _discardDraft() async {
+    await MessageDrafts.delete(_draftKey);
+    if (!mounted) return;
+    setState(() {
+      draftRestored = false;
+      textController.clear();
+      if (widget.source == null) {
+        subjectController.clear();
+        selectedGroups.clear();
+      } else {
+        _prefillFromSource();
+      }
+    });
   }
 
   /// Carries subject, body and recipients over when replying or forwarding.
@@ -146,6 +210,9 @@ class _MessageComposePageState extends State<MessageComposePage> {
 
   @override
   void dispose() {
+    draftDebounce?.cancel();
+    // Whatever was typed last, also when the window is simply closed.
+    if (!sent) unawaited(_saveDraft());
     searchDebounce?.cancel();
     searchController.dispose();
     subjectController.dispose();
@@ -347,6 +414,10 @@ class _MessageComposePageState extends State<MessageComposePage> {
     if (!mounted) return;
     setState(() => sending = false);
     if (failure == null) {
+      sent = true;
+      draftDebounce?.cancel();
+      await MessageDrafts.delete(_draftKey);
+      if (!mounted) return;
       Navigator.pop(context, true);
     } else {
       setState(() => error = failure);
@@ -375,6 +446,21 @@ class _MessageComposePageState extends State<MessageComposePage> {
       ),
       body: Column(
         children: [
+          if (draftRestored)
+            MaterialBanner(
+              leading: const Icon(Icons.drafts_outlined),
+              content: const Text("Dein Entwurf von zuletzt ist wieder da."),
+              actions: [
+                TextButton(
+                  onPressed: _discardDraft,
+                  child: const Text("Verwerfen"),
+                ),
+                TextButton(
+                  onPressed: () => setState(() => draftRestored = false),
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
           if (error != null)
             MaterialBanner(
               backgroundColor: Theme.of(context).colorScheme.errorContainer,
@@ -465,6 +551,7 @@ class _MessageComposePageState extends State<MessageComposePage> {
                       label: Text(group.label),
                       onDeleted: () => setState(() {
                         selectedGroups.removeWhere((g) => g.sameAs(group));
+                        _scheduleDraftSave();
                       }),
                     ),
                 ],
@@ -498,6 +585,7 @@ class _MessageComposePageState extends State<MessageComposePage> {
                       trailing: const Icon(Icons.add),
                       onTap: () => setState(() {
                         selectedGroups.add(group);
+                        _scheduleDraftSave();
                         searchResults = searchResults
                             .where((r) => !r.sameAs(group))
                             .toList();
@@ -614,5 +702,78 @@ class _MessageComposePageState extends State<MessageComposePage> {
           ),
       ],
     );
+  }
+}
+
+/// A message being written, kept until it is sent or thrown away.
+class MessageDraft {
+  const MessageDraft({
+    required this.subject,
+    required this.text,
+    this.groups = const [],
+  });
+
+  final String subject;
+  final String text;
+
+  /// The chosen recipient groups, as the register sent them.
+  final List<Map<dynamic, dynamic>> groups;
+
+  bool get isEmpty => text.trim().isEmpty && groups.isEmpty;
+
+  Map<String, Object?> toJson() =>
+      {"subject": subject, "text": text, "groups": groups};
+
+  static MessageDraft? fromJson(Object? json) {
+    if (json is! Map) return null;
+    return MessageDraft(
+      subject: json["subject"] as String? ?? "",
+      text: json["text"] as String? ?? "",
+      groups: [
+        for (final g in json["groups"] as List? ?? const <Object?>[])
+          if (g is Map) g,
+      ],
+    );
+  }
+}
+
+/// Where the drafts live: one per kind of message (new, a reply to a
+/// message, a forward of one), on this device.
+class MessageDrafts {
+  MessageDrafts._();
+
+  static String _key(String draftKey) => "message_draft_$draftKey";
+
+  static Future<MessageDraft?> load(String draftKey) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_key(draftKey));
+      if (raw == null) return null;
+      final draft = MessageDraft.fromJson(jsonDecode(raw));
+      return draft == null || draft.isEmpty ? null : draft;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Saves [draft], or forgets it when there is nothing in it.
+  static Future<void> save(String draftKey, MessageDraft draft) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (draft.isEmpty) {
+        await prefs.remove(_key(draftKey));
+      } else {
+        await prefs.setString(_key(draftKey), jsonEncode(draft.toJson()));
+      }
+    } catch (_) {
+      // A draft that cannot be saved must not get in the way of writing.
+    }
+  }
+
+  static Future<void> delete(String draftKey) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_key(draftKey));
+    } catch (_) {}
   }
 }

@@ -151,3 +151,139 @@ void registerNotificationActivator(String guid) {
         error: e, stackTrace: trace);
   }
 }
+
+// The mini window (23 of the 9.0 list): the app's own window, made small,
+// without a frame and always on top, in the bottom right corner.
+
+const _gwlStyle = -16;
+const _wsCaption = 0x00C00000;
+const _wsThickFrame = 0x00040000;
+const _wsMinimizeBox = 0x00020000;
+const _wsMaximizeBox = 0x00010000;
+const _swpFrameChanged = 0x0020;
+const _swpShowWindow = 0x0040;
+const _hwndTopmost = -1;
+const _hwndNoTopmost = -2;
+const _spiGetWorkArea = 0x0030;
+const _wmNcLButtonDown = 0x00A1;
+const _htCaption = 2;
+const _miniProperty = "DigitalesRegisterMini";
+
+final _getWindowLongPtr = _user32.lookupFunction<IntPtr Function(IntPtr, Int32),
+    int Function(int, int)>("GetWindowLongPtrW");
+final _setWindowLongPtr = _user32.lookupFunction<
+    IntPtr Function(IntPtr, Int32, IntPtr),
+    int Function(int, int, int)>("SetWindowLongPtrW");
+final _getWindowRect = _user32.lookupFunction<
+    Int32 Function(IntPtr, Pointer<Int32>),
+    int Function(int, Pointer<Int32>)>("GetWindowRect");
+final _setWindowPos = _user32.lookupFunction<
+    Int32 Function(IntPtr, IntPtr, Int32, Int32, Int32, Int32, Uint32),
+    int Function(int, int, int, int, int, int, int)>("SetWindowPos");
+final _systemParametersInfo = _user32.lookupFunction<
+    Int32 Function(Uint32, Uint32, Pointer<Int32>, Uint32),
+    int Function(int, int, Pointer<Int32>, int)>("SystemParametersInfoW");
+final _getDpiForWindow =
+    _user32.lookupFunction<Uint32 Function(IntPtr), int Function(int)>(
+        "GetDpiForWindow");
+final _isZoomed = _user32
+    .lookupFunction<Int32 Function(IntPtr), int Function(int)>("IsZoomed");
+final _setProp = _user32.lookupFunction<
+    Int32 Function(IntPtr, Pointer<Utf16>, IntPtr),
+    int Function(int, Pointer<Utf16>, int)>("SetPropW");
+final _removeProp = _user32.lookupFunction<
+    IntPtr Function(IntPtr, Pointer<Utf16>),
+    int Function(int, Pointer<Utf16>)>("RemovePropW");
+final _releaseCapture =
+    _user32.lookupFunction<Int32 Function(), int Function()>("ReleaseCapture");
+final _sendMessage = _user32.lookupFunction<
+    IntPtr Function(IntPtr, Uint32, IntPtr, IntPtr),
+    int Function(int, int, int, int)>("SendMessageW");
+
+/// How the window was before it turned into the mini window.
+({
+  int style,
+  int left,
+  int top,
+  int width,
+  int height,
+  bool maximized
+})? _beforeMini;
+
+/// Turns the app's window into the mini window: [width] × [height] logical
+/// pixels, no frame, always on top, bottom right. Returns false if that did
+/// not work (or this is not Windows).
+bool enterMiniWindow({int width = 360, int height = 132}) {
+  if (!Platform.isWindows || _beforeMini != null) return false;
+  try {
+    final window = _findMainWindow();
+    if (window == 0) return false;
+    return using((arena) {
+      final maximized = _isZoomed(window) != 0;
+      if (maximized) _showWindow(window, _swRestore);
+      final rect = arena<Int32>(4);
+      _getWindowRect(window, rect);
+      final style = _getWindowLongPtr(window, _gwlStyle);
+      _beforeMini = (
+        style: style,
+        left: rect[0],
+        top: rect[1],
+        width: rect[2] - rect[0],
+        height: rect[3] - rect[1],
+        maximized: maximized,
+      );
+      _setProp(window, _miniProperty.toNativeUtf16(allocator: arena), 1);
+      _setWindowLongPtr(
+        window,
+        _gwlStyle,
+        style & ~(_wsCaption | _wsThickFrame | _wsMinimizeBox | _wsMaximizeBox),
+      );
+      final scale = _getDpiForWindow(window) / 96;
+      final w = (width * scale).round(), h = (height * scale).round();
+      final work = arena<Int32>(4);
+      _systemParametersInfo(_spiGetWorkArea, 0, work, 0);
+      final margin = (16 * scale).round();
+      _setWindowPos(window, _hwndTopmost, work[2] - w - margin,
+          work[3] - h - margin, w, h, _swpFrameChanged | _swpShowWindow);
+      return true;
+    });
+  } catch (e, trace) {
+    log("could not open the mini window", error: e, stackTrace: trace);
+    return false;
+  }
+}
+
+/// Puts the window back the way it was.
+void leaveMiniWindow() {
+  final before = _beforeMini;
+  if (!Platform.isWindows || before == null) return;
+  _beforeMini = null;
+  try {
+    final window = _findMainWindow();
+    if (window == 0) return;
+    using((arena) {
+      _removeProp(window, _miniProperty.toNativeUtf16(allocator: arena));
+    });
+    _setWindowLongPtr(window, _gwlStyle, before.style);
+    _setWindowPos(window, _hwndNoTopmost, before.left, before.top, before.width,
+        before.height, _swpFrameChanged | _swpShowWindow);
+    if (before.maximized) _showWindow(window, 3); // SW_MAXIMIZE
+    _setForegroundWindow(window);
+  } catch (e, trace) {
+    log("could not leave the mini window", error: e, stackTrace: trace);
+  }
+}
+
+/// Lets the user move the frameless mini window by dragging it: hands the
+/// pressed mouse button over to Windows as if the title bar was grabbed.
+void startWindowDrag() {
+  if (!Platform.isWindows) return;
+  try {
+    final window = _findMainWindow();
+    if (window == 0) return;
+    _releaseCapture();
+    _sendMessage(window, _wmNcLButtonDown, _htCaption, 0);
+  } catch (e) {
+    log("could not move the window", error: e);
+  }
+}

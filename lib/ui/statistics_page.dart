@@ -19,6 +19,7 @@
 library;
 
 import 'package:dr/ui/current_lesson.dart';
+import 'package:dr/ui/year_review.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/lesson_times.dart';
@@ -92,7 +93,26 @@ class StatisticsPage extends StatelessWidget {
               padding: EdgeInsets.all(16),
               child: LinearProgressIndicator(),
             ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+            child: Card(
+              child: ListTile(
+                leading: const Icon(Icons.auto_awesome),
+                title: const Text("Schuljahr im Rückblick"),
+                subtitle: const Text(
+                    "Bestes Fach, Fehlstunden, Tests und Notenverlauf – "
+                    "auch als Bild zum Teilen"),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const YearReviewPageContainer(),
+                  ),
+                ),
+              ),
+            ),
+          ),
           _GradeStatistics(grades: grades, ignored: ignoredForAverage),
+          _ReportForecastSection(grades: grades),
           _AbsenceStatistics(
             absences: absences,
             calendar: calendar,
@@ -412,6 +432,66 @@ class _GradeStatistics extends StatelessWidget {
               total: countingTotal,
             ),
         ],
+      ],
+    );
+  }
+}
+
+/// What each subject's average rounds to on the report card (8).
+class _ReportForecastSection extends StatelessWidget {
+  const _ReportForecastSection({required this.grades});
+
+  final GradesState grades;
+
+  @override
+  Widget build(BuildContext context) {
+    final forecasts =
+        ReportForecast.forSubjects(grades.subjects, grades.semester);
+    if (forecasts.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final close = forecasts.where((f) => f.close).length;
+    return _Section(
+      title: "Zeugnis-Prognose",
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Text(
+            "Der jetzige Schnitt jedes Fachs, auf eine ganze Note gerundet. "
+            "„Knapp“ heißt: höchstens 0,1 von der Grenze entfernt – "
+            "${close == 0 ? "gerade kein Fach" : close == 1 ? "1 Fach" : "$close Fächer"}. "
+            "Die Lehrer entscheiden am Ende selbst.",
+            style: theme.textTheme.bodySmall,
+          ),
+        ),
+        for (final f in forecasts)
+          ListTile(
+            dense: true,
+            title: Text(f.subject),
+            subtitle:
+                Text("Schnitt ${gradeAverageFormat.format(f.average / 100)}"),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (f.close)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Chip(
+                      label: const Text("knapp"),
+                      visualDensity: VisualDensity.compact,
+                      labelStyle: theme.textTheme.labelSmall,
+                      side: BorderSide(color: theme.colorScheme.tertiary),
+                    ),
+                  ),
+                Text(
+                  "${f.grade}",
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: f.failing ? theme.colorScheme.error : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
