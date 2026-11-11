@@ -62,10 +62,12 @@ String _format(double scaledByHundred) =>
 Map<String, Object?> _entry(UpcomingExam e) => {
       "t": e.name,
       "s": [e.subject, e.typeName].where((s) => s.isNotEmpty).join(" · "),
-      "k": e.isExam
-          ? "exam"
-          : e.isReminder
-              ? "reminder"
+      // `warning` (homework == 0) marks a test; `isExam` is also set for
+      // homework a teacher entered, which is a "gradeGroup" as well.
+      "k": e.isReminder
+          ? "reminder"
+          : e.warning
+              ? "exam"
               : "homework",
     };
 
@@ -131,6 +133,12 @@ Map<String, Object?> homeWidgetSnapshot(
     ],
     "lastSchoolDay":
         data.lastSchoolDay == null ? null : _dayKey(data.lastSchoolDay!),
+    // Weekend days with school (the Saturday 28 November 2026).
+    "extraSchoolDays": [
+      for (var i = 0; i < _daysAhead; i++)
+        if (extraSchoolDay(today.add(Duration(days: i))) case final extra?)
+          {"d": _dayKey(extra.date), "t": extra.name},
+    ],
     "messages": _messages(data),
   };
 }

@@ -21,6 +21,7 @@ import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/lesson_times.dart';
+import 'package:dr/school_year.dart' show extraSchoolDay;
 import 'package:dr/ui/calendar_week.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:flutter/material.dart' hide Builder;
@@ -75,9 +76,26 @@ abstract class CalendarWeekViewModel
 
   factory CalendarWeekViewModel.fromStateAndWeek(
       AppState state, UtcDateTime monday) {
+    final days = state.calendarState.daysForWeek(monday).toList();
+    // A Saturday with school is shown even before the register has lessons
+    // for it — the register only lists weekends that have some.
+    if (days.isNotEmpty) {
+      for (var i = 5; i < 7; i++) {
+        final date = monday.add(Duration(days: i));
+        if (extraSchoolDay(date) != null &&
+            !days.any((d) =>
+                UtcDateTime(d.date.year, d.date.month, d.date.day) == date)) {
+          days.add(CalendarDay((b) => b
+            ..date = date
+            ..lastFetched = days.first.lastFetched
+            ..hours = ListBuilder<CalendarHour>()));
+        }
+      }
+      days.sort((a, b) => a.date.compareTo(b.date));
+    }
     return CalendarWeekViewModel(
       (b) => b
-        ..days = ListBuilder(state.calendarState.daysForWeek(monday))
+        ..days = ListBuilder(days)
         // converting all keys (subject names) to lower case to make accessing cheaper
         ..subjectNicks = MapBuilder(
           state.settingsState.subjectNicks.toMap().map(

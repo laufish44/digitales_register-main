@@ -50,12 +50,24 @@ HolidayPeriod _holiday(String name, UtcDateTime start, UtcDateTime end) =>
 int schoolYearStart(UtcDateTime date) =>
     date.month >= 9 ? date.year : date.year - 1;
 
+/// A day with school although it would be free — a Saturday the school holds
+/// lessons on, say.
+class ExtraSchoolDay {
+  const ExtraSchoolDay(this.date, this.name);
+
+  final UtcDateTime date;
+
+  /// What it is called in the app: "Schulsamstag".
+  final String name;
+}
+
 /// A school year as the school published it ("Schulkalender").
 class SchoolCalendar {
   const SchoolCalendar({
     required this.firstDay,
     required this.lastDay,
     required this.holidays,
+    this.extraSchoolDays = const [],
   });
 
   final UtcDateTime firstDay;
@@ -64,16 +76,31 @@ class SchoolCalendar {
   /// Each break runs from the first free day to the last one, weekends around
   /// it included, so "läuft" in the sidebar is true for the whole break.
   final List<HolidayPeriod> holidays;
+
+  /// Days with school on a weekend; they count as school days everywhere.
+  final List<ExtraSchoolDay> extraSchoolDays;
+}
+
+/// The extra school day on [date], if the published calendar has one.
+ExtraSchoolDay? extraSchoolDay(UtcDateTime date) {
+  final day = UtcDateTime(date.year, date.month, date.day);
+  for (final extra
+      in officialSchoolCalendar(schoolYearStart(day))?.extraSchoolDays ??
+          const <ExtraSchoolDay>[]) {
+    if (extra.date == day) return extra;
+  }
+  return null;
 }
 
 /// The published calendar of the school year starting in [startYear], or null
 /// for a year nobody has typed in yet (the computed defaults apply then).
 ///
 /// 2026/27 is taken from the published Schulkalender: 7 September 2026 to
-/// 16 June 2027, 174 days of school (Mo 34, Di 35, Mi 36, Do 35, Fr 34) — a
-/// test counts them, so a typo cannot go unnoticed. The sheet itself prints
-/// Fr 35 and 175, but the Faschingsferien start on Friday 5 February (as the
-/// school confirmed), which its totals do not reflect.
+/// 16 June 2027, 175 days of school (Mo 34, Di 35, Mi 36, Do 35, Fr 34, and
+/// Saturday 28 November) — a test counts them, so a typo cannot go
+/// unnoticed. The sheet itself prints Fr 35, but the Faschingsferien start on
+/// Friday 5 February (as the school confirmed); the Saturday makes up for it,
+/// so it is 175 days again.
 ///
 /// A calendar in the remote config (`remote/config.json`) wins over the one
 /// built in here: that is how a new school year, or a correction, reaches the
@@ -98,6 +125,9 @@ SchoolCalendar? officialSchoolCalendar(int startYear) {
           _holiday("Pfingstmontag", _day(2027, 5, 15), _day(2027, 5, 17)),
           _holiday("Tag der Republik", _day(2027, 6, 2), _day(2027, 6, 2)),
         ],
+        extraSchoolDays: [
+          ExtraSchoolDay(_day(2026, 11, 28), "Schulsamstag"),
+        ],
       );
   }
   return null;
@@ -114,8 +144,17 @@ UtcDateTime firstSchoolDay(UtcDateTime date) {
       .subtract(Duration(days: _day(year, 9, 5).weekday - 1));
 }
 
+/// Whether there is school on [day]: a weekday outside the [holidays], or an
+/// [extraSchoolDay].
+bool isSchoolDay(UtcDateTime day,
+    {Iterable<HolidayPeriod> holidays = const []}) {
+  if (extraSchoolDay(day) != null) return true;
+  return day.weekday <= DateTime.friday &&
+      !holidays.any((h) => h.contains(day));
+}
+
 /// The days of school from [from] to [to], both inclusive: weekdays that are
-/// not part of any of the [holidays].
+/// not part of any of the [holidays], and the extra school days.
 List<UtcDateTime> schoolDays(
   UtcDateTime from,
   UtcDateTime to, {
@@ -125,8 +164,7 @@ List<UtcDateTime> schoolDays(
   var day = UtcDateTime(from.year, from.month, from.day);
   final end = UtcDateTime(to.year, to.month, to.day);
   while (!day.isAfter(end)) {
-    if (day.weekday <= DateTime.friday &&
-        !holidays.any((h) => h.contains(day))) {
+    if (isSchoolDay(day, holidays: holidays)) {
       result.add(day);
     }
     // Calendar arithmetic rather than adding 24 hours, so the loop does not
@@ -328,7 +366,10 @@ class SchoolYear {
     while (!day.isAfter(end)) {
       final isWeekend = day.weekday == DateTime.sunday ||
           (day.weekday == DateTime.saturday && !saturdayIsSchoolDay);
-      if (!isWeekend && !holidays.any((h) => h.contains(day))) count++;
+      if (extraSchoolDay(day) != null ||
+          (!isWeekend && !holidays.any((h) => h.contains(day)))) {
+        count++;
+      }
       day = day.add(const Duration(days: 1));
     }
     return count;

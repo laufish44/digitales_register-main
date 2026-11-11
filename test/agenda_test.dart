@@ -908,9 +908,9 @@ void main() {
 
     // The school calendar prints how many days of school each weekday gets.
     // Counting them from the table proves every break was typed in right.
-    // One difference on purpose: the sheet prints Fr 35 / 175, but the
-    // Faschingsferien already start on Friday 5 February.
-    test("the 2026/27 calendar has its 174 days of school", () {
+    // The sheet prints Fr 35, but the Faschingsferien already start on Friday
+    // 5 February; the extra Saturday 28 November brings it back to 175.
+    test("the 2026/27 calendar has its 175 days of school", () {
       final official = officialSchoolCalendar(2026)!;
       final days = schoolDays(
         official.firstDay,
@@ -927,8 +927,21 @@ void main() {
         DateTime.wednesday: 36,
         DateTime.thursday: 35,
         DateTime.friday: 34,
+        DateTime.saturday: 1,
       });
-      expect(days, hasLength(174));
+      expect(days, hasLength(175));
+      expect(days, contains(UtcDateTime(2026, 11, 28)));
+    });
+
+    test("the Saturday with school counts and is marked", () {
+      final saturday = UtcDateTime(2026, 11, 28);
+      expect(extraSchoolDay(saturday)?.name, "Schulsamstag");
+      expect(extraSchoolDay(UtcDateTime(2026, 11, 21)), isNull);
+      expect(isSchoolDay(saturday), isTrue);
+      expect(
+          SchoolYear.schoolDaysBetween(
+              UtcDateTime(2026, 11, 23), UtcDateTime(2026, 11, 29)),
+          6);
     });
 
     test("years without a published calendar still get computed holidays", () {

@@ -166,8 +166,21 @@ class RemoteConfig {
           ..start = start
           ..end = end));
       }
-      calendars[year] =
-          SchoolCalendar(firstDay: first, lastDay: last, holidays: holidays);
+      // [{"date": "2026-11-28", "name": "Schulsamstag"}]
+      final extraDays = <ExtraSchoolDay>[];
+      for (final d in _list(raw?["extraSchoolDays"]) ?? const <dynamic>[]) {
+        final map = _map(d);
+        final date = _date(map?["date"]);
+        if (date == null) continue;
+        extraDays.add(ExtraSchoolDay(
+            date, _string(map?["name"]) ?? "Zusätzlicher Schultag"));
+      }
+      calendars[year] = SchoolCalendar(
+        firstDay: first,
+        lastDay: last,
+        holidays: holidays,
+        extraSchoolDays: extraDays,
+      );
     }
 
     final notices = <RemoteNotice>[];

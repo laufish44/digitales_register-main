@@ -12,6 +12,9 @@
         { "name": "Osterferien", "start": "2027-03-25", "end": "2027-03-30" },
         { "name": "Pfingstmontag", "start": "2027-05-15", "end": "2027-05-17" },
         { "name": "Tag der Republik", "start": "2027-06-02", "end": "2027-06-02" }
+      ],
+      "extraSchoolDays": [
+        { "date": "2026-11-28", "name": "Schulsamstag" }
       ]
     }
   },

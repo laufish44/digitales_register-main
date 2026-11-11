@@ -64,3 +64,6 @@ app.*.map.json
 /android/key.properties
 **/*.jks
 **/*.keystore
+# Fetched by tool/fetch_widget_sdk.ps1 (Windows widgets build tools)
+/windows/widgets/third_party/
+

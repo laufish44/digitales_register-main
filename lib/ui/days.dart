@@ -18,6 +18,7 @@
 import 'package:badges/badges.dart' as badge;
 import 'package:built_collection/built_collection.dart';
 import 'package:deleteable_tile/deleteable_tile.dart';
+import 'package:dr/school_year.dart' show extraSchoolDay;
 import 'package:dr/ui/compact_days.dart';
 import 'package:dr/ui/current_lesson.dart';
 import 'package:dr/ui/dashboard_hints.dart';
@@ -1245,31 +1246,40 @@ class ItemWidget extends StatelessWidget {
 
 /// Whether a day is a school day, a weekend or in the holidays — shown on the
 /// day's heading, quietly: weekends only in a muted colour, holidays in a
-/// colour of their own with their name.
+/// colour of their own with their name. A day with school although it would
+/// be free (the Saturday 28 November 2026) stands out on purpose.
 class DayKind {
-  const DayKind._(this.label, this.icon, this._color);
+  const DayKind._(this.label, this.icon, this._color,
+      {this.isHoliday = false, this.isExtraSchoolDay = false});
 
   static const school = DayKind._(null, null, null);
   static const weekend = DayKind._(null, null, _muted);
 
   factory DayKind.holiday(String name) =>
-      DayKind._(name, Icons.beach_access_outlined, _holiday);
+      DayKind._(name, Icons.beach_access_outlined, _holiday, isHoliday: true);
+
+  factory DayKind.extraSchoolDay(String name) => DayKind._(
+      "$name – ausnahmsweise Schule", Icons.priority_high_rounded, _extra,
+      isExtraSchoolDay: true);
 
   final String? label;
   final IconData? icon;
   final Color? Function(ThemeData theme)? _color;
+  final bool isHoliday;
+  final bool isExtraSchoolDay;
 
   Color? color(ThemeData theme) => _color?.call(theme);
-
-  bool get isHoliday => label != null;
 
   static Color? _muted(ThemeData theme) =>
       theme.colorScheme.onSurface.withValues(alpha: 0.5);
   static Color? _holiday(ThemeData theme) => theme.colorScheme.tertiary;
+  static Color? _extra(ThemeData theme) => Colors.orange.shade700;
 }
 
 DayKind dayKind(UtcDateTime date, Iterable<HolidayPeriod> holidays) {
   final day = UtcDateTime(date.year, date.month, date.day);
+  final extra = extraSchoolDay(day);
+  if (extra != null) return DayKind.extraSchoolDay(extra.name);
   for (final holiday in holidays) {
     if (holiday.contains(day)) return DayKind.holiday(holiday.name);
   }

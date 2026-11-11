@@ -338,7 +338,8 @@ class _DayCard extends StatelessWidget {
 /// whole year on login, so an empty weekday really means "no school", not
 /// "not loaded yet".
 bool _isSchoolDay(UtcDateTime day) =>
-    day.weekday != DateTime.sunday && day.weekday != DateTime.saturday;
+    extraSchoolDay(day) != null ||
+    (day.weekday != DateTime.sunday && day.weekday != DateTime.saturday);
 
 /// The lessons of a day, one row each, with the breaks drawn as empty space.
 ///

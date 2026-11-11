@@ -275,11 +275,18 @@ private class Renderer(
         val rows = day?.optJSONArray("entries").objects().map { entryRow(it) } +
             day?.optJSONArray("lessons").objects().map { lessonRow(it) }
         val weekend = date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY
+        // A weekend day with school, like the Saturday 28 November 2026.
+        val extra = snapshot.optJSONArray("extraSchoolDays").objects()
+            .firstOrNull { it.optString("d") == dayKey(date) }?.optString("t")
         return list(
-            "$label · ${short(date)}",
+            if (extra != null) "$label · ${short(date)} · $extra" else "$label · ${short(date)}",
             null,
             rows,
-            if (weekend) "Wochenende" else "Nichts eingetragen",
+            when {
+                extra != null -> "$extra – ausnahmsweise Schule"
+                weekend -> "Wochenende"
+                else -> "Nichts eingetragen"
+            },
         )
     }
 

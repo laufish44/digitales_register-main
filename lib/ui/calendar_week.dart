@@ -21,7 +21,7 @@ import 'package:dr/container/calendar_week_container.dart';
 import 'package:dr/data.dart';
 import 'package:dr/main.dart';
 import 'package:dr/school_time.dart';
-import 'package:dr/school_year.dart' show calculateEaster;
+import 'package:dr/school_year.dart' show calculateEaster, extraSchoolDay;
 import 'package:dr/ui/last_fetched_overlay.dart';
 import 'package:dr/ui/no_internet.dart';
 import 'package:dr/utc_date_time.dart';
@@ -209,13 +209,40 @@ class CalendarDayWidget extends StatelessWidget {
         }
       }
     }
+    final extra = extraSchoolDay(calendarDay.date);
+    final extraColor = Colors.orange.shade700;
     return Column(
       children: <Widget>[
-        Text(DateFormat("E", "de").format(calendarDay.date)),
+        Text(
+          DateFormat("E", "de").format(calendarDay.date),
+          style: extra == null
+              ? null
+              : TextStyle(color: extraColor, fontWeight: FontWeight.bold),
+        ),
         Text(
           DateFormat("dd.MM", "de").format(calendarDay.date),
-          style: DefaultTextStyle.of(context).style.copyWith(fontSize: 12),
+          style: DefaultTextStyle.of(context).style.copyWith(
+              fontSize: 12,
+              color: extra == null ? null : extraColor,
+              fontWeight: extra == null ? null : FontWeight.bold),
         ),
+        if (extra != null)
+          Tooltip(
+            message: "${extra.name}: ausnahmsweise Schule",
+            child: Container(
+              margin: const EdgeInsets.only(top: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              decoration: BoxDecoration(
+                color: extraColor.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                extra.name,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: extraColor),
+              ),
+            ),
+          ),
         if (chunks.isNotEmpty) ...[
           for (var i = 0; i < chunks.length; i++) ...[
             Expanded(
@@ -252,17 +279,34 @@ class CalendarDayWidget extends StatelessWidget {
                   child: SizedBox(
                     height: 75,
                     width: 75,
-                    child: findHolidayIconForSeason(
-                      calendarDay.date,
-                      Theme.of(context).iconTheme.color!,
-                      holidayIconSize,
-                    ),
+                    child: extra != null
+                        ? Icon(Icons.school,
+                            color: extraColor, size: holidayIconSize)
+                        : findHolidayIconForSeason(
+                            calendarDay.date,
+                            Theme.of(context).iconTheme.color!,
+                            holidayIconSize,
+                          ),
                   ),
                 ),
                 Text(
-                  "Frei",
-                  style: Theme.of(context).textTheme.titleMedium,
+                  // No lessons entered yet, but there is school.
+                  extra != null ? "Schule" : "Frei",
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(color: extra != null ? extraColor : null),
                 ),
+                if (extra != null)
+                  Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Text(
+                      "Stunden noch nicht eingetragen",
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
               ],
             ),
           ),
