@@ -53,12 +53,42 @@ int schoolYearStart(UtcDateTime date) =>
 /// A day with school although it would be free — a Saturday the school holds
 /// lessons on, say.
 class ExtraSchoolDay {
-  const ExtraSchoolDay(this.date, this.name);
+  const ExtraSchoolDay(
+    this.date,
+    this.name, {
+    this.timetableOf,
+    this.lastHour,
+  });
 
   final UtcDateTime date;
 
   /// What it is called in the app: "Schulsamstag".
   final String name;
+
+  /// The weekday (Monday = 1) whose lessons of the same week are held on this
+  /// day, as long as the register has none of its own for it.
+  final int? timetableOf;
+
+  /// The last lesson held (the rest of [timetableOf]'s lessons are dropped).
+  final int? lastHour;
+
+  static const weekdayNames = {
+    1: "Montag",
+    2: "Dienstag",
+    3: "Mittwoch",
+    4: "Donnerstag",
+    5: "Freitag",
+    6: "Samstag",
+    7: "Sonntag",
+  };
+
+  /// "Stundenplan vom Freitag, 1.–5. Stunde".
+  String? get timetableLabel {
+    final of = timetableOf;
+    if (of == null) return null;
+    final hours = lastHour == null ? "" : ", 1.–$lastHour. Stunde";
+    return "Stundenplan vom ${weekdayNames[of] ?? "Freitag"}$hours";
+  }
 }
 
 /// A school year as the school published it ("Schulkalender").
@@ -126,7 +156,9 @@ SchoolCalendar? officialSchoolCalendar(int startYear) {
           _holiday("Tag der Republik", _day(2027, 6, 2), _day(2027, 6, 2)),
         ],
         extraSchoolDays: [
-          ExtraSchoolDay(_day(2026, 11, 28), "Schulsamstag"),
+          // Friday's lessons, the 6th hour left out.
+          ExtraSchoolDay(_day(2026, 11, 28), "Schulsamstag",
+              timetableOf: DateTime.friday, lastHour: 5),
         ],
       );
   }

@@ -592,6 +592,11 @@ abstract class CalendarDay implements Built<CalendarDay, CalendarDayBuilder> {
 
   UtcDateTime? get lastFetched;
 
+  /// Set when the lessons are not the register's: an extra school day it has
+  /// none for yet, filled with another weekday's lessons ("Stundenplan vom
+  /// Freitag, 1.–5. Stunde"), see `ExtraSchoolDay.timetableOf`.
+  String? get derivedFrom;
+
   static Serializer<CalendarDay> get serializer => _$calendarDaySerializer;
   factory CalendarDay([Function(CalendarDayBuilder b)? updates]) =
       _$CalendarDay;

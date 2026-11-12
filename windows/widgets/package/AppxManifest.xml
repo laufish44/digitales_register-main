@@ -161,7 +161,7 @@
                   </Definition>
                   <Definition Id="absences" DisplayName="Absenzen"
                     Description="Anteil der Fehlstunden und wie viel Luft noch bleibt"
-                    AllowMultiple="false" IsCustomizable="false">
+                    AllowMultiple="true" IsCustomizable="true">
                     <Capabilities>
                       <Capability><Size Name="small" /></Capability>
                       <Capability><Size Name="medium" /></Capability>

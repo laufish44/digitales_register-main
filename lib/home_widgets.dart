@@ -76,6 +76,7 @@ Map<String, Object?> _entry(UpcomingExam e) => {
 Map<String, Object?> homeWidgetSnapshot(
   DashboardWidgetData data, {
   required bool loggedIn,
+  Map<String, String> nicks = const {},
 }) {
   final now = data.now;
   final today = UtcDateTime(now.year, now.month, now.day);
@@ -134,13 +135,18 @@ Map<String, Object?> homeWidgetSnapshot(
     ],
     "lastSchoolDay":
         data.lastSchoolDay == null ? null : _dayKey(data.lastSchoolDay!),
-    // Weekend days with school (the Saturday 28 November 2026).
+    "firstSchoolDay": _dayKey(firstSchoolDay(today)),
+    // Weekend days with school (the Saturday 28 November 2026), the whole
+    // school year: the widgets count school days up to the holidays.
     "extraSchoolDays": [
-      for (var i = 0; i < _daysAhead; i++)
-        if (extraSchoolDay(today.add(Duration(days: i))) case final extra?)
-          {"d": _dayKey(extra.date), "t": extra.name},
+      for (final extra
+          in officialSchoolCalendar(schoolYearStart(today))?.extraSchoolDays ??
+              const <ExtraSchoolDay>[])
+        {"d": _dayKey(extra.date), "t": extra.name},
     ],
     "messages": _messages(data),
+    // The subject nicknames from the settings, for narrow widgets.
+    "nicks": nicks,
   };
 }
 
@@ -264,6 +270,7 @@ Map<String, Object?> homeWidgetSnapshotOf(AppState state) {
       ignoredForAverage: settings.ignoreForGradesAverage.toList(),
     ),
     loggedIn: state.loginState.loggedIn,
+    nicks: settings.subjectNicks.toMap(),
   );
 }
 

@@ -129,9 +129,40 @@ class _CalendarState extends State<Calendar> with TickerProviderStateMixin {
   }
 
   void _handlePageChanged(int newPage) {
+    // A jump made in code passes many weeks on the way. Reporting each of
+    // them as the current week moved the target back while the animation
+    // was still running, and the calendar ended up stuck between two weeks
+    // (holiday countdown, then "Schulende" in the sidebar).
+    if (_movingInCode > 0) return;
     final newMonday = mondayOf(newPage);
     if (newMonday != widget.vm.currentMonday) {
       widget.currentMondayCallback(newMonday);
+    }
+  }
+
+  /// How many page moves made in code are running.
+  int _movingInCode = 0;
+
+  /// Shows [page]: animated when it is close, at once when it is further
+  /// than a couple of weeks away (animating across months builds and loads
+  /// every week in between).
+  Future<void> _showPage(int page) async {
+    if (!_controller.hasClients) return;
+    final current = _controller.page?.round() ?? page;
+    if (current == page) return;
+    _movingInCode++;
+    try {
+      if ((page - current).abs() > 2) {
+        _controller.jumpToPage(page);
+      } else {
+        await _controller.animateToPage(
+          page,
+          curve: _animatePageCurve,
+          duration: _animatePageDuration,
+        );
+      }
+    } finally {
+      _movingInCode--;
     }
   }
 
@@ -162,12 +193,12 @@ class _CalendarState extends State<Calendar> with TickerProviderStateMixin {
     });
   }
 
-  void _goToCurrentWeek() {
-    _controller.animateToPage(
-      pageOf(toMonday(now)),
-      curve: _animatePageCurve,
-      duration: _animatePageDuration,
-    );
+  Future<void> _goToCurrentWeek() => _goToMonday(toMonday(now));
+
+  /// Makes the week of [monday] the current one; [didUpdateWidget] then
+  /// moves there.
+  Future<void> _goToMonday(UtcDateTime monday) async {
+    if (monday != widget.vm.currentMonday) widget.currentMondayCallback(monday);
   }
 
   @override
@@ -180,12 +211,8 @@ class _CalendarState extends State<Calendar> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(covariant Calendar oldWidget) {
     final page = pageOf(widget.vm.currentMonday);
-    if (page != _controller.page?.round()) {
-      _controller.animateToPage(
-        page,
-        curve: _animatePageCurve,
-        duration: _animatePageDuration,
-      );
+    if (_controller.hasClients && page != _controller.page?.round()) {
+      _showPage(page);
     }
     if (!tabletMode &&
         oldWidget.vm.selection == null &&
@@ -293,11 +320,7 @@ class _CalendarState extends State<Calendar> with TickerProviderStateMixin {
                                       if (result == null) return;
                                       final date = toMonday(result.makeUtc());
                                       if (date != widget.vm.currentMonday) {
-                                        await _controller.animateToPage(
-                                          pageOf(date),
-                                          curve: _animatePageCurve,
-                                          duration: _animatePageDuration,
-                                        );
+                                        await _goToMonday(date);
                                       }
                                     },
                                     child: widget.vm.first != null &&

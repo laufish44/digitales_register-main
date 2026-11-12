@@ -14,7 +14,7 @@
         { "name": "Tag der Republik", "start": "2027-06-02", "end": "2027-06-02" }
       ],
       "extraSchoolDays": [
-        { "date": "2026-11-28", "name": "Schulsamstag" }
+        { "date": "2026-11-28", "name": "Schulsamstag", "timetableOf": 5, "lastHour": 5 }
       ]
     }
   },

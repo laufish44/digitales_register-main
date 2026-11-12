@@ -158,7 +158,10 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
         initialPage: pageViewIndex,
       );
     } else if (pageViewIndex != _controller.page?.round()) {
-      if (oldWidget.selectedDay != null) {
+      final distance = (pageViewIndex - (_controller.page?.round() ?? 0)).abs();
+      // Animated only to a day close by: across months it would build every
+      // day in between.
+      if (oldWidget.selectedDay != null && distance <= 7) {
         programmaticPageAnimations++;
         _controller
             .animateToPage(

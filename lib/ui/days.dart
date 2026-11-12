@@ -18,7 +18,7 @@
 import 'package:badges/badges.dart' as badge;
 import 'package:built_collection/built_collection.dart';
 import 'package:deleteable_tile/deleteable_tile.dart';
-import 'package:dr/school_year.dart' show extraSchoolDay;
+import 'package:dr/school_year.dart' show ExtraSchoolDay, extraSchoolDay;
 import 'package:dr/ui/compact_days.dart';
 import 'package:dr/ui/current_lesson.dart';
 import 'package:dr/ui/dashboard_hints.dart';
@@ -1258,8 +1258,15 @@ class DayKind {
   factory DayKind.holiday(String name) =>
       DayKind._(name, Icons.beach_access_outlined, _holiday, isHoliday: true);
 
-  factory DayKind.extraSchoolDay(String name) => DayKind._(
-      "$name – ausnahmsweise Schule", Icons.priority_high_rounded, _extra,
+  /// "Schulsamstag – Unterricht wie Freitag, 1.–5. Stunde".
+  factory DayKind.extraSchoolDay(ExtraSchoolDay extra) => DayKind._(
+      extra.timetableOf == null
+          ? "${extra.name} – ausnahmsweise Schule"
+          : "${extra.name} – Unterricht wie "
+              "${ExtraSchoolDay.weekdayNames[extra.timetableOf]}"
+              "${extra.lastHour == null ? "" : ", 1.–${extra.lastHour}. Stunde"}",
+      Icons.priority_high_rounded,
+      _extra,
       isExtraSchoolDay: true);
 
   final String? label;
@@ -1279,7 +1286,7 @@ class DayKind {
 DayKind dayKind(UtcDateTime date, Iterable<HolidayPeriod> holidays) {
   final day = UtcDateTime(date.year, date.month, date.day);
   final extra = extraSchoolDay(day);
-  if (extra != null) return DayKind.extraSchoolDay(extra.name);
+  if (extra != null) return DayKind.extraSchoolDay(extra);
   for (final holiday in holidays) {
     if (holiday.contains(day)) return DayKind.holiday(holiday.name);
   }

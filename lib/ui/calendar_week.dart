@@ -21,7 +21,8 @@ import 'package:dr/container/calendar_week_container.dart';
 import 'package:dr/data.dart';
 import 'package:dr/main.dart';
 import 'package:dr/school_time.dart';
-import 'package:dr/school_year.dart' show calculateEaster, extraSchoolDay;
+import 'package:dr/school_year.dart'
+    show ExtraSchoolDay, calculateEaster, extraSchoolDay;
 import 'package:dr/ui/last_fetched_overlay.dart';
 import 'package:dr/ui/no_internet.dart';
 import 'package:dr/utc_date_time.dart';
@@ -219,27 +220,33 @@ class CalendarDayWidget extends StatelessWidget {
               ? null
               : TextStyle(color: extraColor, fontWeight: FontWeight.bold),
         ),
-        Text(
-          DateFormat("dd.MM", "de").format(calendarDay.date),
-          style: DefaultTextStyle.of(context).style.copyWith(
-              fontSize: 12,
-              color: extra == null ? null : extraColor,
-              fontWeight: extra == null ? null : FontWeight.bold),
-        ),
-        if (extra != null)
+        if (extra == null)
+          Text(
+            DateFormat("dd.MM", "de").format(calendarDay.date),
+            style: DefaultTextStyle.of(context).style.copyWith(fontSize: 12),
+          )
+        else
+          // In the date's line, so the lessons stay level with the other
+          // days: "28.11 · Schulsamstag · wie Fr".
           Tooltip(
-            message: "${extra.name}: ausnahmsweise Schule",
+            message: "${extra.name}: ausnahmsweise Schule"
+                "${calendarDay.derivedFrom == null ? "" : "\n${calendarDay.derivedFrom} – noch nicht im Register eingetragen"}",
             child: Container(
-              margin: const EdgeInsets.only(top: 2),
               padding: const EdgeInsets.symmetric(horizontal: 6),
               decoration: BoxDecoration(
                 color: extraColor.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                extra.name,
+                "${DateFormat("dd.MM", "de").format(calendarDay.date)} · "
+                "${extra.name}"
+                "${calendarDay.derivedFrom == null ? "" : " · wie ${(ExtraSchoolDay.weekdayNames[extra.timetableOf] ?? "").substring(0, 2)}"}",
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11, color: extraColor),
+                style: DefaultTextStyle.of(context).style.copyWith(
+                    fontSize: 12,
+                    color: extraColor,
+                    fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -361,41 +368,47 @@ class HourWidget extends StatelessWidget {
             child: Opacity(
               opacity: isOver ? 0.4 : 1,
               child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      subjectNicks[hour.subject.toLowerCase()] ?? hour.subject,
-                      maxLines: 1,
-                      softWrap: false,
-                    ),
-                    if (hour.teachers.isNotEmpty)
-                      const SizedBox(
-                        height: 5,
-                      ),
-                    for (final teacher in hour.teachers)
+                // Shrinks rather than overflows when a single lesson has
+                // subject, teacher and room to show.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
                       Text(
-                        teacher.lastName,
+                        subjectNicks[hour.subject.toLowerCase()] ??
+                            hour.subject,
                         maxLines: 1,
                         softWrap: false,
-                        style: DefaultTextStyle.of(context)
-                            .style
-                            .copyWith(fontSize: 11),
                       ),
-                    if (hour.rooms.isNotEmpty)
-                      const SizedBox(
-                        height: 5,
-                      ),
-                    for (final room in hour.rooms)
-                      Text(
-                        room,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: DefaultTextStyle.of(context)
-                            .style
-                            .copyWith(fontSize: 11),
-                      ),
-                  ],
+                      if (hour.teachers.isNotEmpty)
+                        const SizedBox(
+                          height: 5,
+                        ),
+                      for (final teacher in hour.teachers)
+                        Text(
+                          teacher.lastName,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: DefaultTextStyle.of(context)
+                              .style
+                              .copyWith(fontSize: 11),
+                        ),
+                      if (hour.rooms.isNotEmpty)
+                        const SizedBox(
+                          height: 5,
+                        ),
+                      for (final room in hour.rooms)
+                        Text(
+                          room,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: DefaultTextStyle.of(context)
+                              .style
+                              .copyWith(fontSize: 11),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -23,6 +23,7 @@ import 'package:dr/actions/calendar_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/reducer/dashboard.dart' show parseGradeGroupSubmission;
+import 'package:dr/school_year.dart' show extraSchoolDay;
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart';
 
@@ -56,12 +57,68 @@ void _loaded(CalendarState state, Action<Map<String, dynamic>> action,
     },
   );
   builder.days.addAll(t);
+  _fillExtraSchoolDays(t.keys, builder);
 }
 
-/// Parses an `api/calendar/student` response the way [_loaded] does.
-///
-/// Exposed so the parsing can be checked against a real response without
-/// standing up a store.
+/// An extra school day (the Saturday 28 November 2026) the register has no
+/// lessons for gets those of another weekday of the same week — the school
+/// says which, and up to which lesson. Lessons the register does enter for it
+/// later win: the next load replaces the copy.
+void _fillExtraSchoolDays(
+    Iterable<UtcDateTime> loaded, CalendarStateBuilder builder) {
+  final weeks = {for (final date in loaded) toMonday(_dayOnly(date))};
+  for (final monday in weeks) {
+    for (var i = 0; i < 7; i++) {
+      final date = monday.add(Duration(days: i));
+      final extra = extraSchoolDay(date);
+      final of = extra?.timetableOf;
+      if (extra == null || of == null) continue;
+      final existing = _findDay(builder, date);
+      if (existing != null &&
+          existing.hours.isNotEmpty &&
+          existing.derivedFrom == null) {
+        continue;
+      }
+      final reference = _findDay(builder, monday.add(Duration(days: of - 1)));
+      if (reference == null || reference.hours.isEmpty) continue;
+      final shift = date.difference(_dayOnly(reference.date));
+      final last = extra.lastHour ?? 99;
+      final hours = <CalendarHour>[
+        for (final hour in reference.hours)
+          if (hour.fromHour <= last)
+            hour.rebuild((b) {
+              final toHour = hour.toHour > last ? last : hour.toHour;
+              final spans = hour.timeSpans
+                  .take(toHour - hour.fromHour + 1)
+                  .map((s) => s.rebuild((t) => t
+                    ..from = s.from.add(shift)
+                    ..to = s.to.add(shift)));
+              b
+                ..toHour = toHour
+                ..timeSpans = ListBuilder(spans)
+                // Tests, homework and lesson notes belong to the original day.
+                ..homeworkExams = ListBuilder<HomeworkExam>()
+                ..lessonContents = ListBuilder<LessonContent>();
+            }),
+      ];
+      builder.days[existing?.date ?? date] = CalendarDay((b) => b
+        ..date = existing?.date ?? date
+        ..lastFetched = reference.lastFetched
+        ..hours = ListBuilder(hours)
+        ..derivedFrom = extra.timetableLabel);
+    }
+  }
+}
+
+UtcDateTime _dayOnly(UtcDateTime d) => UtcDateTime(d.year, d.month, d.day);
+
+CalendarDay? _findDay(CalendarStateBuilder builder, UtcDateTime date) {
+  for (final day in builder.days.build().values) {
+    if (_dayOnly(day.date) == date) return day;
+  }
+  return null;
+}
+
 /// One answer of `api/calendar/student` on its own, outside the store — for
 /// the evening summary and the tests.
 CalendarState parseCalendarResponse(Map<String, dynamic> response) {

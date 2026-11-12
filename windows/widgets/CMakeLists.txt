@@ -33,7 +33,7 @@ target_include_directories(dr_widgets PRIVATE "${GENERATED_DIR}")
 target_compile_features(dr_widgets PRIVATE cxx_std_20)
 target_compile_options(dr_widgets PRIVATE /EHsc /bigobj /permissive- /utf-8)
 target_compile_definitions(dr_widgets PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(dr_widgets PRIVATE windowsapp ole32 shell32)
+target_link_libraries(dr_widgets PRIVATE windowsapp ole32 shell32 gdiplus crypt32)
 # The manifest comes from dr_widgets.rc, not from the linker.
 target_link_options(dr_widgets PRIVATE /MANIFEST:NO)
 

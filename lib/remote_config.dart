@@ -166,14 +166,22 @@ class RemoteConfig {
           ..start = start
           ..end = end));
       }
-      // [{"date": "2026-11-28", "name": "Schulsamstag"}]
+      // [{"date": "2026-11-28", "name": "Schulsamstag",
+      //   "timetableOf": 5, "lastHour": 5}]
       final extraDays = <ExtraSchoolDay>[];
       for (final d in _list(raw?["extraSchoolDays"]) ?? const <dynamic>[]) {
         final map = _map(d);
         final date = _date(map?["date"]);
         if (date == null) continue;
+        int? number(Object? v) =>
+            v is num ? v.toInt() : int.tryParse(v?.toString() ?? "");
+        final of = number(map?["timetableOf"]);
         extraDays.add(ExtraSchoolDay(
-            date, _string(map?["name"]) ?? "Zusätzlicher Schultag"));
+          date,
+          _string(map?["name"]) ?? "Zusätzlicher Schultag",
+          timetableOf: of != null && of >= 1 && of <= 7 ? of : null,
+          lastHour: number(map?["lastHour"]),
+        ));
       }
       calendars[year] = SchoolCalendar(
         firstDay: first,
