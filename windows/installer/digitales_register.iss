@@ -7,7 +7,7 @@
 ; The result lands in "installation files\Windows\".
 
 #define AppName "Digitales Register"
-#define AppVersion "9.1.0"
+#define AppVersion "9.2.0"
 #define AppPublisher "Laurin Feichter"
 #define AppURL "https://github.com/laufish44/digitales_register-main"
 #define AppExeName "digitales_register.exe"
