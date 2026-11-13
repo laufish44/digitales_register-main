@@ -18,6 +18,7 @@
 import 'package:badges/badges.dart' as badge;
 import 'package:built_collection/built_collection.dart';
 import 'package:deleteable_tile/deleteable_tile.dart';
+import 'package:dr/hidden_entries.dart';
 import 'package:dr/school_year.dart' show ExtraSchoolDay, extraSchoolDay;
 import 'package:dr/ui/compact_days.dart';
 import 'package:dr/ui/current_lesson.dart';
@@ -755,6 +756,17 @@ class DayWidget extends StatelessWidget {
                           },
                         ),
                       ),
+                    if (vm.hidden[day.date]?.isNotEmpty ?? false)
+                      _HiddenButton(
+                        hidden: vm.hidden[day.date]!.toList(),
+                        noInternet: vm.noInternet,
+                        onShow: (entry) {
+                          final marker = vm.hideMarkers[hideKeyOf(entry)];
+                          if (marker != null) {
+                            removeReminderCallback(marker, day);
+                          }
+                        },
+                      ),
                   ],
                 ),
               ),
@@ -805,6 +817,9 @@ class DayWidget extends StatelessWidget {
                       !hw.deleted
                   ? () => _addNote(context, hw)
                   : null,
+              onHide: hideKeyOf(hw) != null && !vm.noInternet && !hw.deleted
+                  ? () => addReminderCallback(day, hideMarkerText(hw))
+                  : null,
               onEditLinked: vm.noInternet ? null : (r) => _edit(context, r),
               onRemoveLinked:
                   vm.noInternet ? null : (r) => removeReminderCallback(r, day),
@@ -846,6 +861,9 @@ class ItemWidget extends StatelessWidget {
   /// Adds a reminder that belongs to this entry.
   final VoidCallback? onAddNote;
 
+  /// Hides this entry for oneself (see hidden_entries.dart).
+  final VoidCallback? onHide;
+
   final void Function(Homework reminder)? onEditLinked;
   final void Function(Homework reminder)? onRemoveLinked;
   final void Function(Homework reminder)? onToggleLinked;
@@ -872,6 +890,7 @@ class ItemWidget extends StatelessWidget {
     this.linkedReminders = const [],
     this.onEdit,
     this.onAddNote,
+    this.onHide,
     this.onEditLinked,
     this.onRemoveLinked,
     this.onToggleLinked,
@@ -1032,6 +1051,12 @@ class ItemWidget extends StatelessWidget {
           icon: const Icon(Icons.note_add_outlined),
           tooltip: "Eigene Notiz dazu",
           onPressed: onAddNote,
+        ),
+      if (!isHistory && !isDeletedView && onHide != null)
+        IconButton(
+          icon: const Icon(Icons.visibility_off_outlined),
+          tooltip: "Für mich ausblenden – zählt dann nirgends mehr",
+          onPressed: onHide,
         ),
     ];
     if (actions.isEmpty) return rows;
@@ -1240,6 +1265,79 @@ class ItemWidget extends StatelessWidget {
             noInternet: noInternet,
           ),
       ],
+    );
+  }
+}
+
+/// "2 ausgeblendet" next to a day's heading; opens the list to bring them
+/// back.
+class _HiddenButton extends StatelessWidget {
+  const _HiddenButton({
+    required this.hidden,
+    required this.noInternet,
+    required this.onShow,
+  });
+
+  final List<Homework> hidden;
+  final bool noInternet;
+  final void Function(Homework entry) onShow;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return TextButton.icon(
+      style: TextButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        foregroundColor: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+      ),
+      icon: const Icon(Icons.visibility_off_outlined, size: 16),
+      label: Text("${hidden.length} ausgeblendet",
+          style: theme.textTheme.labelMedium),
+      onPressed: () => showDialog<void>(
+        context: context,
+        builder: (context) => InfoDialog(
+          title: const Text("Ausgeblendet"),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Diese Einträge zählen für dich nicht: keine rote Markierung "
+                  "im Kalender, nicht in „Demnächst“, nicht in den Widgets.",
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                for (final entry in hidden)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                        [entry.label, entry.title]
+                            .whereType<String>()
+                            .where((s) => s.isNotEmpty)
+                            .join(" · "),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis),
+                    subtitle: entry.subtitle.isEmpty
+                        ? null
+                        : Text(entry.subtitle,
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                    trailing: TextButton(
+                      onPressed: noInternet
+                          ? null
+                          : () {
+                              onShow(entry);
+                              Navigator.pop(context);
+                            },
+                      child: const Text("Einblenden"),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -20,6 +20,7 @@ import 'package:collection/collection.dart';
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
+import 'package:dr/hidden_entries.dart';
 import 'package:dr/ui/calendar_detail.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart';
@@ -88,7 +89,10 @@ class CalendarDetailItemContainer extends StatelessWidget {
         isSidebar: isSidebar,
       ),
       connect: (state) {
-        final day = state.calendarState.days[date];
+        final stored = state.calendarState.days[date];
+        final day = stored == null
+            ? null
+            : HiddenEntries.of(state.dashboardState).visibleCalendarDay(stored);
         final hourIndex = state.calendarState.selection?.date == date
             ? state.calendarState.selection?.hour
             : null;

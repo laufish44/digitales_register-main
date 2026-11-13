@@ -18,6 +18,7 @@
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
+import 'package:dr/hidden_entries.dart';
 import 'package:dr/lesson_times.dart';
 import 'package:dr/stats.dart';
 import 'package:dr/ui/calendar_card.dart';
@@ -58,7 +59,8 @@ class CalendarCardContainer extends StatelessWidget {
         );
       },
       connect: (state) {
-        final hour = state.calendarState.days[day]!.hours[hourIndex];
+        final hour = HiddenEntries.of(state.dashboardState)
+            .visibleHour(state.calendarState.days[day]!.hours[hourIndex]);
         return CalendarCardViewModel(
           hour: hour,
           theme: state.settingsState.subjectThemes[hour.subject]!,

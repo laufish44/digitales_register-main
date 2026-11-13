@@ -18,6 +18,7 @@
 import 'package:collection/collection.dart';
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
+import 'package:dr/hidden_entries.dart';
 import 'package:dr/ui/calendar.dart';
 import 'package:dr/utc_date_time.dart';
 import 'package:flutter/material.dart';
@@ -75,10 +76,16 @@ class CalendarViewModel {
             state.settingsState.showCalendarNicksBar,
         noInternet = state.noInternet,
         selection = state.calendarState.selection,
-        examsThisWeek = {
-          for (final day in state.calendarState.currentDays)
-            for (final hour in day.hours)
-              for (final exam in hour.homeworkExams)
-                if (!exam.homework) exam.id,
-        }.length;
+        examsThisWeek = _examsThisWeek(state);
+
+  /// Tests in the week shown, without those hidden for oneself.
+  static int _examsThisWeek(AppState state) {
+    final hidden = HiddenEntries.of(state.dashboardState);
+    return {
+      for (final day in state.calendarState.currentDays)
+        for (final hour in day.hours)
+          for (final exam in hour.homeworkExams)
+            if (!exam.homework && !hidden.hidesExam(exam)) exam.id,
+    }.length;
+  }
 }

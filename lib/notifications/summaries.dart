@@ -28,6 +28,7 @@ library;
 import 'dart:developer';
 
 import 'package:dr/data.dart';
+import 'package:dr/hidden_entries.dart';
 import 'package:dr/notifications/notification_service.dart';
 import 'package:dr/notifications/notification_store.dart';
 import 'package:dr/reducer/calendar.dart' show parseCalendarResponse;
@@ -90,6 +91,8 @@ class EveningSummary {
     final tests = <String>[];
     final homework = <String>[];
     var reminders = 0;
+    // Entries hidden for oneself are left out (hidden_entries.dart).
+    final hidden = hiddenKeysInRaw(dashboard);
     for (final dynamic rawDay in dashboard ?? const <dynamic>[]) {
       final map = rawDay is Map ? rawDay : null;
       if (map == null || getString(map["date"]) != _isoDay(day)) continue;
@@ -97,6 +100,8 @@ class EveningSummary {
           in getList(map["items"]) ?? const <dynamic>[]) {
         if (rawItem is! Map) continue;
         final type = getString(rawItem["type"]);
+        if (hidden.contains("$type:${getInt(rawItem["id"])}")) continue;
+        if (isHideMarkerText(getString(rawItem["subtitle"]))) continue;
         final subject = nick(getString(rawItem["label"]) ?? "");
         if (type == "gradeGroup") {
           if (rawItem["homework"] == 0) {

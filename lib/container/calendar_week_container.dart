@@ -20,6 +20,7 @@ import 'package:built_value/built_value.dart';
 import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
+import 'package:dr/hidden_entries.dart';
 import 'package:dr/lesson_times.dart';
 import 'package:dr/school_year.dart' show extraSchoolDay;
 import 'package:dr/ui/calendar_week.dart';
@@ -76,7 +77,12 @@ abstract class CalendarWeekViewModel
 
   factory CalendarWeekViewModel.fromStateAndWeek(
       AppState state, UtcDateTime monday) {
-    final days = state.calendarState.daysForWeek(monday).toList();
+    // Without the tests hidden for oneself: no red mark for them.
+    final hidden = HiddenEntries.of(state.dashboardState);
+    final days = state.calendarState
+        .daysForWeek(monday)
+        .map(hidden.visibleCalendarDay)
+        .toList();
     // A Saturday with school is shown even before the register has lessons
     // for it — the register only lists weekends that have some.
     if (days.isNotEmpty) {

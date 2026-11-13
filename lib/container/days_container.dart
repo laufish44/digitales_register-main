@@ -21,7 +21,9 @@ import 'package:dr/actions/app_actions.dart';
 import 'package:dr/actions/dashboard_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
+import 'package:dr/hidden_entries.dart';
 import 'package:dr/ui/days.dart';
+import 'package:dr/utc_date_time.dart';
 import 'package:flutter/material.dart' hide Builder;
 import 'package:flutter_built_redux/flutter_built_redux.dart';
 
@@ -116,15 +118,26 @@ abstract class DaysViewModel
   bool get compact;
   BuiltMap<String, String> get subjectNicks;
 
+  /// Entries hidden for oneself, by day, for "1 ausgeblendet" (see
+  /// hidden_entries.dart). They are not in [days].
+  BuiltMap<UtcDateTime, BuiltList<Homework>> get hidden;
+
+  /// The reminders that hide them, by key, to bring them back.
+  BuiltMap<String, Homework> get hideMarkers;
+
   factory DaysViewModel([void Function(DaysViewModelBuilder)? updates]) =
       _$DaysViewModel;
   DaysViewModel._();
 
   factory DaysViewModel.from(AppState state) {
+    final hiddenEntries = HiddenEntries.of(state.dashboardState);
+    final hidden = <UtcDateTime, BuiltList<Homework>>{};
     final unorderedDays = state.dashboardState.allDays
             ?.where((day) => day.future == state.dashboardState.future)
-            .map(
-              (day) => day.rebuild(
+            .map((day) {
+          final hiddenOn = hiddenEntries.hiddenOn(day);
+          if (hiddenOn.isNotEmpty) hidden[day.date] = BuiltList(hiddenOn);
+          return hiddenEntries.visible(day).rebuild(
                 (b) => b
                   ..deletedHomework.where(
                     (hw) => !isBlacklisted(hw, state.dashboardState.blacklist!),
@@ -132,9 +145,8 @@ abstract class DaysViewModel
                   ..homework.where(
                     (hw) => !isBlacklisted(hw, state.dashboardState.blacklist!),
                   ),
-              ),
-            )
-            .toList() ??
+              );
+        }).toList() ??
         [];
 
     return DaysViewModel(
@@ -142,6 +154,8 @@ abstract class DaysViewModel
         ..days = ListBuilder(
           !state.dashboardState.future ? unorderedDays.reversed : unorderedDays,
         )
+        ..hidden = MapBuilder(hidden)
+        ..hideMarkers = MapBuilder(hiddenEntries.markers)
         ..noInternet = state.noInternet
         ..future = state.dashboardState.future
         ..loading = state.dashboardState.loading || state.loginState.loading

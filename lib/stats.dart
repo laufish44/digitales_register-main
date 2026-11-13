@@ -27,6 +27,7 @@ import 'dart:math' as math;
 
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
+import 'package:dr/hidden_entries.dart';
 import 'package:dr/reminder_links.dart' show linkKeyIn, reminderTextOf;
 import 'package:dr/utc_date_time.dart';
 import 'package:dr/util.dart' show toMonday;
@@ -1094,12 +1095,15 @@ class Agenda {
     bool includeCalendar = true,
   }) {
     final entries = <UpcomingExam>[];
+    // Entries hidden for oneself count nowhere (hidden_entries.dart).
+    final hidden = HiddenEntries.of(dashboard);
 
     for (final day in includeCalendar
         ? calendar.days.values
         : const Iterable<CalendarDay>.empty()) {
       for (final hour in day.hours) {
         for (final exam in hour.homeworkExams) {
+          if (hidden.hidesExam(exam)) continue;
           entries.add(
             UpcomingExam(
               name: exam.name,
@@ -1119,6 +1123,7 @@ class Agenda {
     for (final day in dashboard?.allDays ?? const <Day>[]) {
       for (final homework in day.homework) {
         if (homework.deleted) continue;
+        if (isHideMarker(homework) || hidden.hides(homework)) continue;
         // Grades and observations are results, not something that is coming up.
         if (homework.type == HomeworkType.grade ||
             homework.type == HomeworkType.observation) {
@@ -1281,11 +1286,13 @@ class WeekProgress {
     final monday = toMonday(UtcDateTime(now.year, now.month, now.day));
     final nextMonday = monday.add(const Duration(days: 7));
     var done = 0, total = 0;
+    final hidden = HiddenEntries.of(dashboard);
     for (final day in dashboard.allDays ?? const <Day>[]) {
       final date = UtcDateTime(day.date.year, day.date.month, day.date.day);
       if (date.isBefore(monday) || !date.isBefore(nextMonday)) continue;
       for (final entry in day.homework) {
         if (entry.deleted || !entry.checkable) continue;
+        if (isHideMarker(entry) || hidden.hides(entry)) continue;
         total++;
         if (entry.checked) done++;
       }

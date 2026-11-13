@@ -26,6 +26,7 @@ import 'package:dr/actions/app_actions.dart';
 import 'package:dr/app_state.dart';
 import 'package:dr/data.dart';
 import 'package:dr/file_actions.dart';
+import 'package:dr/hidden_entries.dart';
 import 'package:dr/main.dart' show showSnackBar;
 import 'package:dr/stats.dart';
 import 'package:dr/utc_date_time.dart';
@@ -113,12 +114,13 @@ class YearReview {
     final today = UtcDateTime(now.year, now.month, now.day);
     final testIds = <int>{};
     var lessons = 0;
+    final hidden = HiddenEntries.of(state.dashboardState);
     for (final day in state.calendarState.days.values) {
       if (day.date.isAfter(today)) continue;
       for (final hour in day.hours) {
         lessons += hour.length;
         for (final exam in hour.homeworkExams) {
-          if (!exam.homework) testIds.add(exam.id);
+          if (!exam.homework && !hidden.hidesExam(exam)) testIds.add(exam.id);
         }
       }
     }
